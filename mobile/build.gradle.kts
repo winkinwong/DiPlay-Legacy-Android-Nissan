@@ -1,3 +1,5 @@
+import com.android.build.gradle.internal.tasks.L8DexDesugarLibTask
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -10,6 +12,7 @@ val localAuthenticationAssets = providers.environmentVariable("DIPLAY_AUTH_ASSET
 
 android {
     namespace = "com.shilapi.xcertplay"
+    testBuildType = providers.gradleProperty("legacyInstrumentationBuildType").getOrElse("debug")
     compileSdk {
         version = release(37)
     }
@@ -19,6 +22,7 @@ android {
         minSdk = 19
         targetSdk = 37
         multiDexEnabled = true
+        multiDexKeepProguard = file("multidex-config.pro")
         testInstrumentationRunner = "com.shilapi.xcertplay.T3LegacyInstrumentation"
         versionCode = 38
         versionName = "0.2.18-t3.1"
@@ -62,6 +66,16 @@ android {
 val authenticationProbeRuntime by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
+}
+
+// AGP 9.3 shrinks test L8 separately, shadowing target-app methods on native multidex Android.
+// Keep a complete compatibility library in the test APK only; production remains unchanged.
+afterEvaluate {
+    tasks.withType<L8DexDesugarLibTask>().configureEach {
+        if (name.endsWith("AndroidTest")) {
+            keepRulesConfigurations.add("-keep class j$.** { *; }")
+        }
+    }
 }
 
 dependencies {

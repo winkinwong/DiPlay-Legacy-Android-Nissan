@@ -168,6 +168,25 @@ Recipients can extract that identity from the APK.
 The APK excludes the Android signing key.
 See [the project notices](THIRD_PARTY_NOTICES.md) for the experimental identity used in public releases.
 
+### Test the signed release on legacy Android
+
+Build instrumentation for the production application instead of the debug app:
+
+```sh
+./gradlew :mobile:assembleStandaloneRelease :mobile:assembleReleaseAndroidTest -PlegacyInstrumentationBuildType=release
+adb install -r mobile/build/outputs/apk/release/mobile-release.apk
+adb install -r mobile/build/outputs/apk/androidTest/release/mobile-release-androidTest.apk
+adb shell am instrument -w -r com.shihab.diplay.test/com.shilapi.xcertplay.T3LegacyInstrumentation
+```
+
+With multiple connected devices, add `-s SERIAL` to each adb command. Check both
+`failures: 0` and `INSTRUMENTATION_CODE: -1`; adb's exit code alone is insufficient.
+The default test build type remains debug when the property is omitted.
+API 19 cold-start classes are explicitly retained in `mobile/multidex-config.pro`.
+Run fresh and same-key upgrade installations as well as instrumentation; a
+successful debug launch does not establish that the release main DEX is correct.
+These emulator checks do not establish a physical CarPlay session.
+
 The public source archive matches the release tag.
 It excludes runtime identities, signing keys, local configuration, and build output.
 The retired `build-beta.py` helper is no longer part of the build procedure.
