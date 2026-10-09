@@ -70,6 +70,7 @@ object AirPlayPersistence {
     private const val KEY_CALL_ECHO_CANCELLATION = "call_echo_cancellation"
     private const val KEY_CALL_VOICE_FILTER = "call_voice_filter"
     private const val KEY_SMOOTH_VIDEO = "smooth_video"
+    private const val KEY_DIRECT_SURFACE_VIEW = "direct_surface_view"
     private const val KEY_CLUSTER_MAP = "cluster_map_enabled"
     private const val KEY_ADB_CLUSTER_ACTIVITY = "adb_cluster_activity_enabled"
     private const val KEY_CENTER_MAP_OVERLAY = "center_map_overlay"
@@ -538,6 +539,20 @@ object AirPlayPersistence {
 
     fun saveSmoothVideo(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_SMOOTH_VIDEO, enabled).apply()
+    }
+
+    /**
+     * Direct SurfaceView hardware rendering: defaults to true on older/low-end Android (API <= 23)
+     * to eliminate TextureView GPU composition bottlenecks on chips like MT3561 and Allwinner T3.
+     */
+    fun loadDirectSurfaceView(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val defaultMode = android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.M
+        return prefs.getBoolean(KEY_DIRECT_SURFACE_VIEW, defaultMode)
+    }
+
+    fun saveDirectSurfaceView(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_DIRECT_SURFACE_VIEW, enabled).apply()
     }
 
     fun saveMediaBufferMillis(context: Context, millis: Int) {

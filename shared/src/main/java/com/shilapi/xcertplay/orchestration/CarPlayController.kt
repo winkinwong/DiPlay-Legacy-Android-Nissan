@@ -1753,58 +1753,66 @@ class CarPlayController(
     }
 
     private fun onIphonePermission(result: IphoneUsbHost.PermissionResult) {
-        when (result) {
-            is IphoneUsbHost.PermissionResult.Granted -> {
-                // The system broadcast and the polling fallback can both observe the grant.
-                if (!permissionGrant.compareAndSet(false, true)) return
-                debugLog("wired iPhone USB permission granted")
-                permissionPollGeneration++
-                when (phase) {
-                    Phase.REENUMERATION, Phase.IPHONE -> {
-                        if (Build.VERSION.SDK_INT < 21) {
-                            val attempts = reenumerationAttempts
-                            val permissionGeneration = permissionPollGeneration
-                            iphoneHost.inspectCarPlayConfigurationAsync(result.device, executor) { configuration ->
-                                mainHandler.post {
-                                    if (!closed && reenumerationAttempts == attempts &&
-                                        permissionPollGeneration == permissionGeneration &&
-                                        (phase == Phase.REENUMERATION || phase == Phase.IPHONE)) {
-                                        useIphoneConfiguration(result.device, configuration)
+        try {
+            when (result) {
+                is IphoneUsbHost.PermissionResult.Granted -> {
+                    // The system broadcast and the polling fallback can both observe the grant.
+                    if (!permissionGrant.compareAndSet(false, true)) return
+                    debugLog("wired iPhone USB permission granted")
+                    permissionPollGeneration++
+                    when (phase) {
+                        Phase.REENUMERATION, Phase.IPHONE -> {
+                            if (Build.VERSION.SDK_INT < 21) {
+                                val attempts = reenumerationAttempts
+                                val permissionGeneration = permissionPollGeneration
+                                iphoneHost.inspectCarPlayConfigurationAsync(result.device, executor) { configuration ->
+                                    mainHandler.post {
+                                        try {
+                                            if (!closed && reenumerationAttempts == attempts &&
+                                                permissionPollGeneration == permissionGeneration &&
+                                                (phase == Phase.REENUMERATION || phase == Phase.IPHONE)) {
+                                                useIphoneConfiguration(result.device, configuration)
+                                            }
+                                        } catch (error: Throwable) {
+                                            fail(error)
+                                        }
                                     }
                                 }
+                                return
                             }
-                            return
-                        }
-                        val configuration = IphoneCarPlayConfiguration.find(result.device)
-                        connectionDiagnostic(
-                            "USB configuration ready=${configuration != null} " +
-                                "configurationId=${configuration?.id ?: "none"} " +
-                                "reenumerationAttempts=$reenumerationAttempts " +
-                                "action=${when {
-                                    configuration != null -> "reuse-descriptors"
-                                    reenumerationAttempts < MAXIMUM_REENUMERATION_ATTEMPTS -> "request-transition"
-                                    else -> "reject-missing-configuration"
-                                }}",
-                        )
-                        if (configuration != null) {
-                            openDataPaths(result.device)
-                        } else if (reenumerationAttempts < MAXIMUM_REENUMERATION_ATTEMPTS) {
-                            beginReenumeration(result.device)
-                        } else {
-                            fail(
-                                IphoneUsbException.Protocol(
-                                    "iPhone did not expose a complete CarPlay USB configuration",
-                                ),
+                            val configuration = runCatching { IphoneCarPlayConfiguration.find(result.device) }.getOrNull()
+                            connectionDiagnostic(
+                                "USB configuration ready=${configuration != null} " +
+                                    "configurationId=${configuration?.id ?: "none"} " +
+                                    "reenumerationAttempts=$reenumerationAttempts " +
+                                    "action=${when {
+                                        configuration != null -> "reuse-descriptors"
+                                        reenumerationAttempts < MAXIMUM_REENUMERATION_ATTEMPTS -> "request-transition"
+                                        else -> "reject-missing-configuration"
+                                    }}",
                             )
+                            if (configuration != null) {
+                                openDataPaths(result.device)
+                            } else if (reenumerationAttempts < MAXIMUM_REENUMERATION_ATTEMPTS) {
+                                beginReenumeration(result.device)
+                            } else {
+                                fail(
+                                    IphoneUsbException.Protocol(
+                                        "iPhone did not expose a complete CarPlay USB configuration",
+                                    ),
+                                )
+                            }
                         }
+                        else -> Unit
                     }
-                    else -> Unit
+                }
+                is IphoneUsbHost.PermissionResult.Denied -> {
+                    permissionGrant.set(true)
+                    onStatus(CarPlayStatus.Failed("iPhone USB permission was denied"))
                 }
             }
-            is IphoneUsbHost.PermissionResult.Denied -> {
-                permissionGrant.set(true)
-                onStatus(CarPlayStatus.Failed("iPhone USB permission was denied"))
-            }
+        } catch (error: Throwable) {
+            fail(error)
         }
     }
 
@@ -1814,22 +1822,27 @@ class CarPlayController(
         val deadlineNanos = System.nanoTime() + PERMISSION_POLL_TIMEOUT_MILLIS * 1_000_000L
         val check = object : Runnable {
             override fun run() {
-                if (closed || generation != permissionPollGeneration) return
-                if (requireUsbManager().hasPermission(device)) {
-                    onIphonePermission(IphoneUsbHost.PermissionResult.Granted(device))
-                    return
-                }
-                if (System.nanoTime() >= deadlineNanos) {
-                    if (permissionGrant.compareAndSet(false, true)) {
-                        onStatus(
-                            CarPlayStatus.Failed(
-                                "iPhone USB permission was not granted; tap Reconnect iPhone to retry",
-                            ),
-                        )
+                try {
+                    if (closed || generation != permissionPollGeneration) return
+                    val hasPerm = runCatching { requireUsbManager().hasPermission(device) }.getOrDefault(false)
+                    if (hasPerm) {
+                        onIphonePermission(IphoneUsbHost.PermissionResult.Granted(device))
+                        return
                     }
-                    return
+                    if (System.nanoTime() >= deadlineNanos) {
+                        if (permissionGrant.compareAndSet(false, true)) {
+                            onStatus(
+                                CarPlayStatus.Failed(
+                                    "iPhone USB permission was not granted; tap Reconnect iPhone to retry",
+                                ),
+                            )
+                        }
+                        return
+                    }
+                    mainHandler.postDelayed(this, PERMISSION_POLL_INTERVAL_MILLIS)
+                } catch (error: Throwable) {
+                    fail(error)
                 }
-                mainHandler.postDelayed(this, PERMISSION_POLL_INTERVAL_MILLIS)
             }
         }
         mainHandler.postDelayed(check, PERMISSION_POLL_INTERVAL_MILLIS)
@@ -1866,20 +1879,24 @@ class CarPlayController(
         val started = System.nanoTime()
         val poll = object : Runnable {
             override fun run() {
-                if (closed || phase != Phase.REENUMERATION || generation != availabilityPollGeneration.get()) return
-                val elapsed = (System.nanoTime() - started) / 1_000_000
-                val found = iphoneHost.discover().firstOrNull()
-                if (found != null && (found.deviceName != previous.deviceName || elapsed >= 2500)) {
-                    availabilityPollGeneration.incrementAndGet()
-                    connectionDiagnostic("USB transition polling found device after ${elapsed}ms")
-                    requestIphonePermission(found)
-                    return
+                try {
+                    if (closed || phase != Phase.REENUMERATION || generation != availabilityPollGeneration.get()) return
+                    val elapsed = (System.nanoTime() - started) / 1_000_000
+                    val found = runCatching { iphoneHost.discover().firstOrNull() }.getOrNull()
+                    if (found != null && (found.deviceName != previous.deviceName || elapsed >= 2500)) {
+                        availabilityPollGeneration.incrementAndGet()
+                        connectionDiagnostic("USB transition polling found device after ${elapsed}ms")
+                        requestIphonePermission(found)
+                        return
+                    }
+                    if (elapsed >= 30000) {
+                        fail(IphoneUsbException.DeviceUnavailable("iPhone USB re-enumeration timed out after 30 seconds"))
+                        return
+                    }
+                    mainHandler.postDelayed(this, 500)
+                } catch (error: Throwable) {
+                    fail(error)
                 }
-                if (elapsed >= 30000) {
-                    fail(IphoneUsbException.DeviceUnavailable("iPhone USB re-enumeration timed out after 30 seconds"))
-                    return
-                }
-                mainHandler.postDelayed(this, 500)
             }
         }
         mainHandler.postDelayed(poll, 500)

@@ -631,4 +631,9 @@
     <string name="settings_interface_size">Размер интерфейса</string>
     <string name="settings_interface_size_auto">Автоматически</string>
     <string name="settings_interface_size_hint">Размер текста и элементов управления на экранах DiPlay. В автоматическом режиме они увеличиваются на больших экранах с низкой плотностью. CarPlay не меняется.</string>
+    <string name="settings_direct_surface_view">Прямой рендеринг аппаратного слоя (экспериментально)</string>
+    <string name="settings_direct_surface_view_description">Использует аппаратные наложения SurfaceView напрямую вместо TextureView, обходя композицию GPU и значительно снижая нагрузку на бюджетных магнитолах. Настройки картинки не применяются. Переподключает CarPlay.</string>
+    <string name="bluetooth_adapter_unavailable">В магнитоле нет встроенного адаптера Bluetooth; беспроводной CarPlay недоступен. Используйте проводное подключение по USB.</string>
+    <string name="usb_iphone_busy_or_occupied">USB-порт iPhone занят другим приложением (например, штатным плеером iPod). Закройте плеер iPod и переподключите кабель.</string>
+    <string name="usb_iphone_permission_not_granted">Разрешение USB для iPhone не получено. Проверьте запрос разрешений, закройте плеер iPod и переподключите кабель.</string>
 </resources>

@@ -358,7 +358,13 @@ class IphoneUsbHost(
 
     private fun registerReceiver(filter: IntentFilter, onReceive: (Intent) -> Unit): Closeable {
         val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) = onReceive(intent)
+            override fun onReceive(context: Context, intent: Intent) {
+                try {
+                    onReceive(intent)
+                } catch (error: Throwable) {
+                    Log.w(IphoneCarPlayConfiguration.TAG, "USB broadcast receiver handling failed", error)
+                }
+            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)

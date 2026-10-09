@@ -278,6 +278,8 @@ class CarPlayHostActivity : ComponentActivity() {
     private var fallbackVideoBounds: CarPlaySurfaceBounds? = null
     // Smooth video (a setting): SurfaceView output with frames released at the iPhone's frame time.
     private var smoothVideo = false
+    // Direct SurfaceView output: hardware overlay without TextureView composition overhead.
+    private var directSurfaceView = false
     // Sinks whose sessions are being torn down; their decoders may still render to the current surface
     // until they have released their codecs, so a destroyed surface is detached from them too. A restart
     // and a shutdown can overlap, so this is a set.
@@ -1529,6 +1531,7 @@ class CarPlayHostActivity : ComponentActivity() {
         root.addView(safeAreaEditor, FrameLayout.LayoutParams(-1, -1))
         videoView = video
         smoothVideo = AirPlayPersistence.loadSmoothVideo(this)
+        directSurfaceView = AirPlayPersistence.loadDirectSurfaceView(this)
         observeVideoWindow(video)
         gestureOverlay = gestureLayer
         settingsGestureHint = gestureHint
@@ -4406,9 +4409,10 @@ class CarPlayHostActivity : ComponentActivity() {
             return
         }
         if (controller == null && adoptBackgroundSession()) return
-        // The video view is chosen once per activity; a changed Smooth video setting needs a new one.
-        if (controller == null && AirPlayPersistence.loadSmoothVideo(this) != smoothVideo) {
-            appendLog("Smooth video setting changed; rebuilding the video view")
+        // The video view is chosen once per activity; a changed video surface setting needs a new one.
+        if (controller == null && (AirPlayPersistence.loadSmoothVideo(this) != smoothVideo ||
+            AirPlayPersistence.loadDirectSurfaceView(this) != directSurfaceView)) {
+            appendLog("Video surface setting changed; rebuilding the video view")
             // No session runs here, but a restart keeps this host as the session owner; the new instance
             // must be able to start its own.
             if (CarPlayBackgroundSession.isOwner(this)) CarPlayBackgroundSession.clear()
@@ -4680,9 +4684,9 @@ class CarPlayHostActivity : ComponentActivity() {
                 if (!texture.isAttachedToWindow) return true
                 removeVideoSurfaceProbe()
                 if (isDestroyed || videoView !== texture) return true
-                val mode = carPlayVideoSurfaceMode(texture.isHardwareAccelerated, smoothVideo)
+                val mode = carPlayVideoSurfaceMode(texture.isHardwareAccelerated, smoothVideo, directSurfaceView)
                 appendLog("Video output mode=$mode windowHardwareAccelerated=${texture.isHardwareAccelerated} " +
-                    "smoothVideo=$smoothVideo")
+                    "smoothVideo=$smoothVideo directSurfaceView=$directSurfaceView")
                 if (mode == CarPlayVideoSurfaceMode.TEXTURE) return true
                 useFallbackVideoSurface(texture)
                 return false // Measure the replacement before drawing the software window.
@@ -4724,11 +4728,14 @@ class CarPlayHostActivity : ComponentActivity() {
             }
         }
         root.addView(viewport, index, texture.layoutParams)
-        appendLog(if (smoothVideo) {
-            "Using SurfaceView video output: smooth video, frames shown at the iPhone's frame time + a delay " +
-                "starting at ${smoothVideoDelayMillis(fps)} ms; picture adjustments unavailable"
-        } else {
-            "Using SurfaceView video output: window has no hardware acceleration; picture adjustments unavailable"
+        appendLog(when {
+            smoothVideo ->
+                "Using SurfaceView video output: smooth video, frames shown at the iPhone's frame time + a delay " +
+                    "starting at ${smoothVideoDelayMillis(fps)} ms; picture adjustments unavailable"
+            directSurfaceView ->
+                "Using SurfaceView video output: direct hardware overlay (low CPU/GPU overhead); picture adjustments unavailable"
+            else ->
+                "Using SurfaceView video output: window has no hardware acceleration; picture adjustments unavailable"
         })
     }
 
@@ -4915,6 +4922,9 @@ class CarPlayHostActivity : ComponentActivity() {
         message.contains("needs a reset", true) -> getString(R.string.a_previous_wi_fi_direct_connection_is_still_running_reset)
         message.contains("socket", true) || message.contains("RFCOMM", true) ->
             getString(R.string.your_iphone_isn_t_available_unlock_it_and_check_bluetooth)
+        message.contains("Bluetooth adapter is unavailable", true) -> getString(R.string.bluetooth_adapter_unavailable)
+        message.contains("busy", true) || message.contains("EBUSY", true) -> getString(R.string.usb_iphone_busy_or_occupied)
+        message.contains("permission was not granted", true) -> getString(R.string.usb_iphone_permission_not_granted)
         message.contains("unsupported", true) || message.contains("not supported", true) -> getString(R.string.this_head_unit_may_not_support_wireless_carplay_try_a_usb)
         message.contains("denied", true) || message.contains("permission", true) -> getString(R.string.allow_the_connection_permission_to_continue)
         message.contains("Failed", true) ||

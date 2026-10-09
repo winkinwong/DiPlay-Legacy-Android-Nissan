@@ -728,4 +728,9 @@
     <string name="settings_interface_size">Interface size</string>
     <string name="settings_interface_size_auto">Automatic</string>
     <string name="settings_interface_size_hint">Size of text and controls on DiPlay\'s own screens. Automatic enlarges them on large screens with a low density. CarPlay is not affected.</string>
+    <string name="settings_direct_surface_view">Direct SurfaceView rendering (experimental)</string>
+    <string name="settings_direct_surface_view_description">Uses native SurfaceView hardware overlays directly instead of TextureView, bypassing GPU View composition and significantly reducing GPU/memory load on low-end car headunits (e.g. Android 4.4/6.0, MT3561, T3). Picture adjustments do not apply. Reconnects CarPlay.</string>
+    <string name="bluetooth_adapter_unavailable">Head unit has no native Bluetooth adapter; wireless CarPlay unavailable. Please use a wired USB cable.</string>
+    <string name="usb_iphone_busy_or_occupied">iPhone USB is busy or occupied by another app (e.g. car iPod player). Close the car iPod app and reconnect the cable.</string>
+    <string name="usb_iphone_permission_not_granted">iPhone USB permission was not granted. Check for system permission prompts, exit any car iPod app, and reconnect.</string>
 </resources>

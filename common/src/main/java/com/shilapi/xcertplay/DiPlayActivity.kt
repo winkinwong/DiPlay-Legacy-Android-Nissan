@@ -1396,6 +1396,12 @@ class DiPlayActivity : ComponentActivity() {
                 AirPlayPersistence.saveSmoothVideo(this, it)
                 reconnectIfRunning()
             }
+            toggle(card, getString(R.string.settings_direct_surface_view),
+                getString(R.string.settings_direct_surface_view_description),
+                AirPlayPersistence.loadDirectSurfaceView(this)) {
+                AirPlayPersistence.saveDirectSurfaceView(this, it)
+                reconnectIfRunning()
+            }
             toggle(card, getString(R.string.call_echo_cancellation), getString(R.string.call_echo_cancellation_description),
                 AirPlayPersistence.loadCallEchoCancellation(this)) {
                 AirPlayPersistence.saveCallEchoCancellation(this, it)
