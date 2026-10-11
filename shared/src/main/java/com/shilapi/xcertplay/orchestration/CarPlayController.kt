@@ -1349,7 +1349,9 @@ class CarPlayController(
                 // Bind discovery and its connect probe to the same AP/address family as AirPlay.
                 // The car hotspot previously used system NSD, which could resolve another interface
                 // or IPv6 while the listener/probe was bound to the AP's IPv4 address.
-                useInterfaceMdns = Build.VERSION.SDK_INT > Build.VERSION_CODES.P,
+                // Some KitKat head units have no working servicediscovery system service.
+                // Use bundled JmDNS instead of crashing in NsdManager.getMessenger().
+                useInterfaceMdns = com.shilapi.xcertplay.network.useBundledCarPlayMdns(Build.VERSION.SDK_INT),
                 onEvent = { event -> debugLog("wireless bonjour: ${event.diagnosticSummary()}") },
                 additionalAddresses = hotspotInfo.hostAddresses.filter { it != hostAddress },
             )
