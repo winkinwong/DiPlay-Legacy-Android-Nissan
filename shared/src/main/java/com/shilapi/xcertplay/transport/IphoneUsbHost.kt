@@ -165,6 +165,7 @@ class IphoneUsbHost(
                 val response = ByteArray(VENDOR_RESPONSE_LENGTH)
                 var lastTransferred = -1
                 var success = false
+                var stalled = 0
                 val maxAttempts = 3
                 for (attempt in 1..maxAttempts) {
                     lastTransferred = connection.controlTransfer(
@@ -180,6 +181,9 @@ class IphoneUsbHost(
                         success = true
                         break
                     }
+                    // Issue #107: -1 means the iPhone STALLed the request (rejected outright),
+                    // not a timeout. Count them to tell "iPhone refuses" from "no answer".
+                    if (lastTransferred < 0) stalled++
                     if (attempt < maxAttempts) {
                         try {
                             Thread.sleep(200L * attempt)
@@ -190,8 +194,18 @@ class IphoneUsbHost(
                     }
                 }
                 if (!success) {
+                    // The vendor request is standard and works on other devices/iOS versions;
+                    // a STALL almost always means the iPhone refused it: non-MFi cable, or
+                    // the "Trust This Computer" prompt was never accepted.
+                    val hint = if (stalled == maxAttempts) {
+                        " The iPhone rejected the CarPlay configuration request outright" +
+                            " (USB STALL). Use an original Apple cable and accept" +
+                            " \"Trust This Computer\" on the iPhone when prompted."
+                    } else {
+                        ""
+                    }
                     throw IphoneUsbException.Protocol(
-                        "CarPlay configuration request transferred $lastTransferred of ${response.size} bytes (after $maxAttempts attempts)",
+                        "CarPlay configuration request transferred $lastTransferred of ${response.size} bytes (after $maxAttempts attempts).$hint",
                     )
                 }
                 TransitionResult.ReenumerationRequested
