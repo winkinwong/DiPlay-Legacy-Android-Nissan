@@ -4,12 +4,15 @@ import java.net.Socket
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * Regression tests for issue #106: a dying screen stream must not kill the whole AirPlay
  * control session at once. The session gets a grace period so the iPhone can re-SETUP just
  * the video stream after a transient stall.
  */
+@RunWith(RobolectricTestRunner::class)
 class ScreenStreamReapTest {
     private val engine = CarPlayMediaEngine(object : MediaSink {}).apply {
         screenReapGraceMillis = 150L

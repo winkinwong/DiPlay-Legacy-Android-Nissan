@@ -3,6 +3,7 @@ package com.shilapi.xcertplay
 import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeNoException
 import org.junit.Test
 
 /** Regression tests for issue #108: one USB volume seen through several mount points. */
@@ -14,8 +15,12 @@ class DiagnosticExportDedupeTest {
         val mountB = Files.createTempDirectory("mount-b").toFile()
         val linkB = File(mountB, "usbhost0")
         try {
-            Files.createSymbolicLink(linkA.toPath(), volume.toPath())
-            Files.createSymbolicLink(linkB.toPath(), volume.toPath())
+            try {
+                Files.createSymbolicLink(linkA.toPath(), volume.toPath())
+                Files.createSymbolicLink(linkB.toPath(), volume.toPath())
+            } catch (e: Exception) {
+                assumeNoException("Symlink creation not permitted in this environment", e)
+            }
             val roots = DiagnosticExportStore.dedupeExportRoots(listOf(linkA, linkB, volume))
             assertEquals(1, roots.size)
             assertEquals(volume.canonicalPath, roots[0].canonicalPath)
@@ -44,7 +49,11 @@ class DiagnosticExportDedupeTest {
         val volume = Files.createTempDirectory("usb-vol").toFile()
         val alias = File(volume.parentFile, "usb-alias")
         try {
-            Files.createSymbolicLink(alias.toPath(), volume.toPath())
+            try {
+                Files.createSymbolicLink(alias.toPath(), volume.toPath())
+            } catch (e: Exception) {
+                assumeNoException("Symlink creation not permitted in this environment", e)
+            }
             val roots = DiagnosticExportStore.dedupeExportRoots(listOf(alias, volume))
             assertEquals(1, roots.size)
             assertEquals(volume.canonicalPath, roots[0].path)
