@@ -413,6 +413,13 @@ class CarPlayHostActivity : ComponentActivity() {
     private var awaitingWirelessPermissions = false
     private var awaitingLocationPermission = false
     private var vpnReady = false
+    /**
+     * Issue #109: set when the system VPN consent dialog cannot be shown
+     * (com.android.vpndialogs missing on stripped head-unit ROMs). Without consent,
+     * VpnService.establish() always fails with "Cannot create interface" — proceeding
+     * anyway only produces an infinite retry loop with a cryptic error.
+     */
+    private var vpnConsentUnavailable = false
     private var hotspotStatus = HotspotStatus(state = "off")
     private var menuOpen = false
     private var latestStage = "Preparing CarPlay"
@@ -745,17 +752,20 @@ class CarPlayHostActivity : ComponentActivity() {
             try {
                 vpnConsent.launch(consent)
             } catch (e: ActivityNotFoundException) {
+                // Issue #109: the VPN consent dialog is missing on this ROM. Consent can
+                // never be granted, so establish() will always fail — fail loudly instead
+                // of entering an infinite "Cannot create interface" retry loop.
                 Log.w(TAG, "VPN confirmation dialog not found on device (com.android.vpndialogs missing)", e)
-                appendLog("VPN dialog unavailable (com.android.vpndialogs missing), proceeding")
+                appendLog("VPN dialog unavailable (com.android.vpndialogs missing); VPN consent cannot be granted on this head unit")
                 awaitingVpnConsent = false
-                vpnReady = true
-                maybeStartCarPlay()
+                vpnConsentUnavailable = true
+                setStatus(getString(R.string.vpn_consent_unavailable))
             } catch (e: SecurityException) {
                 Log.w(TAG, "VPN confirmation dialog launch permission denied", e)
-                appendLog("VPN dialog launch denied, proceeding")
+                appendLog("VPN dialog launch denied; VPN consent cannot be granted on this head unit")
                 awaitingVpnConsent = false
-                vpnReady = true
-                maybeStartCarPlay()
+                vpnConsentUnavailable = true
+                setStatus(getString(R.string.vpn_consent_unavailable))
             }
         }
     }
