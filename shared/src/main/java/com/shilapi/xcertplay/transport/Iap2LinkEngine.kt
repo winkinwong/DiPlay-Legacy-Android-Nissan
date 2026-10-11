@@ -148,6 +148,12 @@ class Iap2LinkEngine(
 
     fun writable(): Boolean = writable
 
+    /** Number of packets already sent but not yet acknowledged by the peer. */
+    fun unacknowledgedCount(): Int = unacknowledged.size
+
+    /** Payload bytes already sent but not yet acknowledged by the peer. */
+    fun unacknowledgedBytes(): Long = unacknowledged.sumOf { it.payload.size.toLong() }
+
     fun peerSynchronization(): SynchronizationPayload = peerSynchronization
 
     fun takeOutput(): ByteArray {

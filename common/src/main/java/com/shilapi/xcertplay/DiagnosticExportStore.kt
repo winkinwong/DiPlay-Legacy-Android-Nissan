@@ -72,12 +72,12 @@ internal object DiagnosticExportStore {
     /** Best-effort verified copies: report success only for a write that actually completed. */
     private fun exportCopiesToAccessibleStorage(context: Context, fileName: String, report: String, preferredRoot: File?): List<String> {
         val written = linkedSetOf<String>()
-        val roots = linkedSetOf<File>()
-        if (preferredRoot != null) roots.add(preferredRoot)
-        runCatching { roots.add(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)) }
-        runCatching { roots.add(Environment.getExternalStorageDirectory()) }
+        val candidates = mutableListOf<File>()
+        if (preferredRoot != null) candidates.add(preferredRoot)
+        runCatching { candidates.add(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)) }
+        runCatching { candidates.add(Environment.getExternalStorageDirectory()) }
         runCatching {
-            context.getExternalFilesDirs(null)?.drop(1)?.filterNotNull()?.forEach { roots.add(it) }
+            context.getExternalFilesDirs(null)?.drop(1)?.filterNotNull()?.forEach { candidates.add(it) }
         }
         // Android 4.4 factory ROMs frequently mount USB media under vendor-named directories.
         // Only inspect immediate children and one additional level, never traverse arbitrary trees.
@@ -87,15 +87,15 @@ internal object DiagnosticExportStore {
             val dir = File(base)
             for (child in dir.listFiles().orEmpty()) {
                 if (!child.isDirectory) continue
-                if (usbNames.matches(child.name)) roots.add(child)
+                if (usbNames.matches(child.name)) candidates.add(child)
                 for (sub in child.listFiles().orEmpty()) {
                     if (sub.isDirectory && (usbNames.matches(child.name) || usbNames.matches(sub.name))) {
-                        roots.add(sub)
+                        candidates.add(sub)
                     }
                 }
             }
         }
-        for (root in roots) {
+        for (root in dedupeExportRoots(candidates)) {
             runCatching {
                 if (!root.isDirectory || !root.canWrite()) return@runCatching
                 val canonicalRoot = root.canonicalFile
@@ -114,6 +114,22 @@ internal object DiagnosticExportStore {
             }
         }
         return written.toList()
+    }
+
+    /**
+     * Head units often expose a single USB volume through several mount points at once
+     * (`/storage/xxxx`, `/mnt/usbhostN`, `/mnt/media_rw/xxxx`, app external dirs). Dedupe by
+     * canonical path so the same volume receives exactly one report copy instead of one per
+     * mount point. See issue #108.
+     */
+    internal fun dedupeExportRoots(candidates: List<File>): List<File> {
+        val seen = linkedSetOf<String>()
+        val roots = mutableListOf<File>()
+        for (candidate in candidates) {
+            val key = runCatching { candidate.canonicalPath }.getOrDefault(candidate.absolutePath)
+            if (seen.add(key)) roots.add(File(key))
+        }
+        return roots
     }
     private fun saveInDirectory(
         context: Context,
