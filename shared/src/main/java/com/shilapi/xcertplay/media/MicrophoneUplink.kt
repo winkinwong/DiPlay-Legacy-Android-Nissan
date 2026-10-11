@@ -322,6 +322,7 @@ internal class MicrophoneUplink(
     }
 
     private fun sendFrame(socket: DatagramSocket, counters: MicrophoneCounters, frame: ByteArray) {
+        stats.frameSilent(frame.all { it == 0.toByte() })
         val bodies = if (config.codec == AudioCodecKind.OPUS) {
             opusEncoder?.encode(frame).orEmpty()
         } else {

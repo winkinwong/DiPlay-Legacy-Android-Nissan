@@ -586,6 +586,7 @@ class CarPlayHostActivity : ComponentActivity() {
             displayManager?.registerDisplayListener(clusterDisplayListener, mainHandler)
         }
         initializeSessionLog()
+        installCrashDiagnostics()
         lastConfiguration = Configuration(resources.configuration)
         darkMode = savedInstanceState?.getBoolean("carplay_night_active")
             ?: nightModeOrNull(resources.configuration.uiMode) ?: false
@@ -1381,6 +1382,7 @@ class CarPlayHostActivity : ComponentActivity() {
         fallbackVideoBounds = null
         sessionLog?.append("Activity destroyed")
         sessionLog?.close()
+        if (crashDiagnosticLog === sessionLog) crashDiagnosticLog = null
         sessionLog = null
         super.onDestroy()
     }
@@ -5071,6 +5073,37 @@ class CarPlayHostActivity : ComponentActivity() {
             )
         }
         sessionLog = activeLog
+        crashDiagnosticLog = activeLog
+    }
+
+    /**
+     * Records uncaught exceptions into the diagnostic log before the process dies, so
+     * crash-class issues can be triaged from the exported report without adb. The previous
+     * default handler still runs, preserving the normal crash flow. See issue #106.
+     */
+    private fun installCrashDiagnostics() {
+        if (Thread.getDefaultUncaughtExceptionHandler() is DiPlayCrashHandler) return
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler(DiPlayCrashHandler(previous))
+    }
+
+    private class DiPlayCrashHandler(
+        private val next: Thread.UncaughtExceptionHandler?,
+    ) : Thread.UncaughtExceptionHandler {
+        private val reported = AtomicBoolean(false)
+
+        override fun uncaughtException(thread: Thread, error: Throwable) {
+            if (reported.compareAndSet(false, true)) {
+                runCatching {
+                    val trace = error.stackTraceToString().lineSequence().take(40).joinToString("\n")
+                    crashDiagnosticLog?.append(
+                        "FATAL thread=${thread.name} " +
+                            "${error.javaClass.name}: ${error.message}\n$trace",
+                    )
+                }
+            }
+            runCatching { next?.uncaughtException(thread, error) }
+        }
     }
 
     private fun refreshLogView(nowMillis: Long) {
@@ -5193,6 +5226,12 @@ class CarPlayHostActivity : ComponentActivity() {
         const val CONTROLLER_CLOSE_TIMEOUT_MILLIS = 4_000L
         const val AUDIO_CAPTURE_MARKER = "audio-capture.enabled"
         const val AUDIO_CAPTURE_DIRECTORY = "audio-captures"
+        /**
+         * Process-global target for [DiPlayCrashHandler]. Kept off the activity instance so the
+         * default uncaught-exception handler never retains a destroyed activity. See issue #106.
+         */
+        @Volatile
+        private var crashDiagnosticLog: SessionLogFile? = null
         const val PROTOCOL_TRACE_PREFIX = "TRACE "
         const val SETTINGS_SWIPE_DISTANCE_DP = 72
         const val SETTINGS_SWIPE_DIRECTION_RATIO = 1.15f
