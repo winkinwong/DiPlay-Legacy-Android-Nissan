@@ -68,6 +68,16 @@ class CarPlayVpnScopeTest {
         }
     }
 
+    @Test fun uidRuleFailureFallsBackToRouteOnlyEstablishment() {
+        VpnScopeBoundary.establishFailure = IllegalStateException(
+            "command '42 interface fwmark uid add tun1 0 99999' failed with '400 42 Failed to add uid rule (Invalid argument)'"
+        )
+        withService { service ->
+            attachWired(service)
+            assertEquals(listOf("allow:${service.packageName}", "establish", "establish"), VpnScopeBoundary.calls)
+        }
+    }
+
     @Test fun rejectedWiredReplacementClosesWirelessListenerAndAllowsFreshWirelessAttach() {
         withService { service ->
             assertEquals(CarPlayVpnService.AttachResult.Started, attachWireless(service))

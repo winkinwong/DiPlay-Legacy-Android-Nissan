@@ -3,7 +3,9 @@ package com.shilapi.xcertplay.bluetooth
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.os.Build
 import android.provider.Settings
 import com.shilapi.xcertplay.compat.BluetoothCompat
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
@@ -71,12 +73,59 @@ class AndroidBluetoothAdapter(
     override fun openRfcommStream(deviceAddress: String, uuid: String): BlockingDuplexByteStream {
         val a = adapter ?: throw IOException("Bluetooth adapter is unavailable")
         val device = a.getRemoteDevice(deviceAddress)
-        val socket = device.createRfcommSocketToServiceRecord(UUID.fromString(uuid))
+        val serviceUuid = UUID.fromString(uuid)
+
+        var socket: BluetoothSocket? = null
+        var lastError: Throwable? = null
+
+        // 1. Try standard secure RFCOMM
+        try {
+            socket = connectSocket(device, a) { it.createRfcommSocketToServiceRecord(serviceUuid) }
+        } catch (t: Throwable) {
+            lastError = t
+        }
+
+        // 2. Fallback to insecure RFCOMM on legacy or custom vehicle ROMs where MITM pairing is absent
+        if (socket == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD_MR1) {
+            try {
+                socket = connectSocket(device, a) { it.createInsecureRfcommSocketToServiceRecord(serviceUuid) }
+            } catch (t: Throwable) {
+                lastError = t
+            }
+        }
+
+        // 3. Channel 1 reflection fallback if SDP service record resolution was stripped by vehicle ROM
+        if (socket == null) {
+            try {
+                socket = connectSocket(device, a) { dev ->
+                    val method = dev.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
+                    method.invoke(dev, 1) as BluetoothSocket
+                }
+            } catch (_: Throwable) {
+                // Ignore reflection fallback error and keep primary lastError
+            }
+        }
+
+        if (socket == null) {
+            if (lastError is IOException) throw lastError
+            throw IOException("Failed to connect Bluetooth RFCOMM to $deviceAddress", lastError)
+        }
+
+        return BluetoothRfcommDuplexStream(socket)
+    }
+
+    private fun connectSocket(
+        device: BluetoothDevice,
+        adapter: BluetoothAdapter,
+        timeoutMillis: Long = 10000L,
+        socketFactory: (BluetoothDevice) -> BluetoothSocket,
+    ): BluetoothSocket {
+        val socket = socketFactory(device)
         val result = AtomicReference<Throwable?>()
         val latch = CountDownLatch(1)
         Thread({
             try {
-                runCatching { a.cancelDiscovery() }
+                runCatching { adapter.cancelDiscovery() }
                 socket.connect()
             } catch (t: Throwable) {
                 result.set(t)
@@ -88,10 +137,10 @@ class AndroidBluetoothAdapter(
             start()
         }
 
-        val completed = latch.await(10000L, TimeUnit.MILLISECONDS)
+        val completed = latch.await(timeoutMillis, TimeUnit.MILLISECONDS)
         if (!completed) {
             runCatching { socket.close() }
-            throw IOException("Timed out connecting AOSP RFCOMM to $deviceAddress")
+            throw IOException("Timed out connecting AOSP RFCOMM to ${device.address}")
         }
 
         val err = result.get()
@@ -101,6 +150,6 @@ class AndroidBluetoothAdapter(
             throw IOException("Could not connect RFCOMM", err)
         }
 
-        return BluetoothRfcommDuplexStream(socket)
+        return socket
     }
 }

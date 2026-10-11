@@ -26,7 +26,7 @@ class Iap2WirelessPrematureCloseTest {
         }
         val link = Iap2LinkChannel.openWireless(transport)
         try {
-            Thread.sleep(1250L)
+            Thread.sleep(400L)
             assertTrue("expect marker and a synchronization packet", writes.any { it.size > 6 })
         } finally {
             runCatching { link.close() }

@@ -109,8 +109,25 @@ class CarPlayVpnService : VpnService() {
             // KitKat has no per-app VPN. Only the IPv6 link-local route above is installed;
             // no default route, DNS, Wi-Fi internet or mobile internet is captured.
             attachStage = "VPN establish"
-            val tunFd = builder.establish()
-                ?: throw IOException("VpnService.establish returned null")
+            val tunFd = try {
+                builder.establish()
+            } catch (error: Throwable) {
+                if (Build.VERSION.SDK_INT >= 21 && isUidRuleUnsupported(error)) {
+                    runCatching {
+                        listener.onDebugLog("wired per-app VPN establish rejected by custom ROM netd ($error); falling back to route-only VPN")
+                    }
+                    val fallbackBuilder = Builder()
+                        .addAddress(linkLocal, LINK_PREFIX)
+                        .addRoute(LINK_LOCAL_ROUTE, LINK_PREFIX)
+                        .setSession(SESSION_NAME)
+                        .setMtu(TUN_MTU)
+                    fallbackBuilder.setBlocking(true)
+                    attachStage = "VPN establish (route-only fallback)"
+                    fallbackBuilder.establish()
+                } else {
+                    throw error
+                }
+            } ?: throw IOException("VpnService.establish returned null")
             tun = tunFd
             runCatching { listener.onDebugLog("wired VPN TUN established address=$linkLocal mtu=$TUN_MTU") }
             if (Build.VERSION.SDK_INT < 21) LegacyTunBlocking.enable(tunFd)
@@ -387,6 +404,13 @@ class CarPlayVpnService : VpnService() {
             val origin = error.stackTrace.firstOrNull()
                 ?.let { " at ${it.className.substringAfterLast('.')}.${it.methodName}" }.orEmpty()
             return chain + origin
+        }
+
+        internal fun isUidRuleUnsupported(error: Throwable): Boolean {
+            val message = error.message.orEmpty()
+            return message.contains("uid rule", ignoreCase = true) ||
+                message.contains("fwmark", ignoreCase = true) ||
+                message.contains("Failed to add uid", ignoreCase = true)
         }
         /** Returns the VPN consent intent, or null when consent is already granted. */
         fun prepare(context: Context): Intent? = VpnService.prepare(context)
