@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothProfile
 import com.shilapi.xcertplay.compat.BluetoothCompat
+import com.shilapi.xcertplay.media.musicVolumeWarning
 import com.shilapi.xcertplay.bluetooth.BluetoothAddressResolver
 import com.shilapi.xcertplay.bluetooth.CarPlayBluetoothManager
 import android.bluetooth.BluetoothSocket
@@ -329,6 +330,12 @@ class CarPlayController(
                 }.getOrElse { "audioDiagnostics=${it.javaClass.simpleName}" }
                 debugLog("wireless audio route at AirPlay session start: $output; " +
                     "OEM A2DP/MCU source selection may differ from Android routing APIs")
+                // Issue #88: near-zero STREAM_MUSIC volume is the most common "packets flow
+                // but no sound" cause on head units; surface it loudly at session start.
+                runCatching {
+                    val audio = appContext.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+                    musicVolumeWarning(audio)?.let { debugLog(it) }
+                }
             }
             uiListener?.onSessionActive(session)
         }
