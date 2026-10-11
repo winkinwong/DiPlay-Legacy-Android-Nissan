@@ -1167,6 +1167,15 @@ class CarPlayController(
         var stage = "hotspot startup"
         try {
             debugLog("wireless bring-up generation=$generation starting")
+            // Issue #79: without a Bluetooth adapter, wireless CarPlay is impossible —
+            // iPhone needs Bluetooth for discovery/pairing. Fail fast instead of waiting
+            // 60s for a Wi-Fi connection that will never come.
+            if (BluetoothAdapter.getDefaultAdapter() == null) {
+                throw IOException(
+                    "No Bluetooth adapter on this head unit; wireless CarPlay requires Bluetooth " +
+                        "for iPhone discovery. Use wired USB instead."
+                )
+            }
             closeWirelessStack(generation = generation)
             if (
                 closed ||
