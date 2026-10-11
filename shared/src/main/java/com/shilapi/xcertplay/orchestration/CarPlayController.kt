@@ -2260,7 +2260,8 @@ class CarPlayController(
             )
             onStatus(
                 when (result.terminal) {
-                    Iap2WiredControlTerminal.TIMED_OUT -> CarPlayStatus.ControlEnded
+                    Iap2WiredControlTerminal.TIMED_OUT ->
+                        CarPlayStatus.Failed("Wired CarPlay control timed out at ${result.stage}; StartSession sent=${result.carPlayStartSessionsSent}")
                     Iap2WiredControlTerminal.CHANNEL_CLOSED ->
                         CarPlayStatus.Failed("CarPlay control channel closed")
                 },

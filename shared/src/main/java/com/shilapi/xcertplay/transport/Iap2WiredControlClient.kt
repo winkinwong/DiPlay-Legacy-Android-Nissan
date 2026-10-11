@@ -58,6 +58,8 @@ class Iap2WiredControlClient(
 
         var forwardedFrames = 0
         var carPlayStartSessions = 0
+        // Only the initial CarPlay availability handshake is time-bounded; live control stays open.
+        val startupDeadlineNanos = System.nanoTime() + STARTUP_AVAILABILITY_TIMEOUT_MILLIS * NANOS_PER_MILLISECOND
         val location = Iap2LocationReporter(locationProvider, onProgress)
         val vehicleStatus = Iap2VehicleStatusReporter(vehicleStatusProvider, onProgress)
         try {
@@ -68,7 +70,14 @@ class Iap2WiredControlClient(
                 }
                 location.tick { send(it, deadlineNanos) }
                 vehicleStatus.tick { send(it, deadlineNanos) }
-                val pollTimeout = vehicleStatus.pollTimeout(location.pollTimeout(remaining))
+                val startupRemaining = if (carPlayStartSessions == 0) {
+                    ((startupDeadlineNanos - System.nanoTime()) / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
+                } else remaining
+                if (startupRemaining == 0L) {
+                    onProgress("iap2 wired startup timed out waiting for CarPlay availability")
+                    return Iap2WiredControlResult(Iap2WiredControlTerminal.TIMED_OUT, stage, forwardedFrames, carPlayStartSessions)
+                }
+                val pollTimeout = vehicleStatus.pollTimeout(location.pollTimeout(minOf(remaining, startupRemaining)))
                 val incoming = try {
                     session.recv(pollTimeout)
                 } catch (failure: IOException) {
@@ -142,6 +151,7 @@ class Iap2WiredControlClient(
         const val NO_TIMEOUT_MILLIS = Long.MAX_VALUE
         private const val CARPLAY_AVAILABILITY = 0x4300
         private const val CARPLAY_START_SESSION = 0x4301
+        private const val STARTUP_AVAILABILITY_TIMEOUT_MILLIS = 60_000L
         private const val DEFAULT_TIMEOUT_MILLIS = 60_000L
         private const val MAX_TIMEOUT_MILLIS = 24 * 60 * 60 * 1_000L
         private const val MAX_RECV_TIMEOUT_MILLIS = 5 * 60 * 1_000L

@@ -415,10 +415,12 @@ class CarPlayVpnService : VpnService() {
         }
 
         internal fun isUidRuleUnsupported(error: Throwable): Boolean {
-            val message = error.message.orEmpty()
-            return message.contains("uid rule", ignoreCase = true) ||
-                message.contains("fwmark", ignoreCase = true) ||
-                message.contains("Failed to add uid", ignoreCase = true)
+            return generateSequence(error) { it.cause }.take(8).any { cause ->
+                val message = cause.message.orEmpty()
+                message.contains("uid rule", ignoreCase = true) ||
+                    message.contains("fwmark", ignoreCase = true) ||
+                    message.contains("Failed to add uid", ignoreCase = true)
+            }
         }
         /** Returns the VPN consent intent, or null when consent is already granted. */
         fun prepare(context: Context): Intent? = VpnService.prepare(context)
