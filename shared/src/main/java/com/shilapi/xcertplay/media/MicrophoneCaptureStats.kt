@@ -71,6 +71,12 @@ internal class MicrophoneCaptureStats(
 
     fun sendFailed() { sendErrors++ }
 
+    /** True if no non-silent frame has ever been captured in this session. */
+    fun neverReceivedAudio(): Boolean = firstAudioMs < 0
+
+    /** Total count of all-zero frames captured in this session. */
+    fun silentFrameCount(): Long = silentFrames
+
     /**
      * Tracks per-frame capture silence for issue #102 triage: distinguishes "the recorder
      * yields only zeroes" (broken audio path / cold-start window) from "packets never sent".
