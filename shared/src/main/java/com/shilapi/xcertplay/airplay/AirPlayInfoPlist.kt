@@ -148,18 +148,21 @@ object AirPlayInfoPlist {
         val opus = if (opusAudioOutput) 0x70000000 else 0
         val aacLc = if (is48) 0x800000 else 0x400000
         val pcmInput = if (microphone) pcmMono else null
-        // Offering Opus the device cannot encode makes the iPhone choose it and the uplink stays
-        // silent, so a unit without an Opus encoder advertises PCM alone and is heard.
-        val wirelessInput = if (microphone) (if (microphoneOpus) pcmMono or opus else pcmMono) else null
+        // iOS Wireless CarPlay protocol strictly mandates Opus (0x70000000) in default audio
+        // formats (type 100 default) input & output. Omitting it causes iOS to refuse wireless
+        // audio stream negotiation and route audio through iPhone speakers.
+        val defaultInput = if (microphone) pcmMono or 0x70000000 else null
+        // For actual speech capture (telephony / speechRecognition), offer PCM alone if no Opus encoder exists.
+        val voiceInput = if (microphone) (if (microphoneOpus) pcmMono or 0x70000000 else pcmMono) else null
 
         return listOf(
             format(100, "compatibility", pcm, pcmInput),
             format(101, "compatibility", pcm),
-            format(100, "default", pcm or opus, wirelessInput),
+            format(100, "default", pcm or opus, defaultInput),
             format(100, "alert", pcm or opus),
             format(100, "media", pcm),
-            format(100, "telephony", pcmMono or opus, wirelessInput),
-            format(100, "speechRecognition", pcmMono or opus, wirelessInput),
+            format(100, "telephony", pcmMono or opus, voiceInput),
+            format(100, "speechRecognition", pcmMono or opus, voiceInput),
             format(101, "default", pcm or opus),
             format(102, "media", aacLc),
         ) + if (mainBuffered) {

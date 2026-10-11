@@ -212,10 +212,11 @@ class AirPlayInfoPlistTest {
             telephony(AirPlayInfoPlist.build(base.copy(microphone = true)))["audioInputFormats"],
         )
 
-        // No Opus encoder below API 29, so a unit that offered Opus there was never heard.
+        // No Opus encoder below API 29, so a unit that offered Opus there was never heard on telephony/speech.
+        // But type 100 default must retain Opus in input formats so iOS does not refuse wireless audio stream.
         val withoutOpus = AirPlayInfoPlist.build(base.copy(microphone = true, microphoneOpus = false))
         assertEquals(0x4154, telephony(withoutOpus)["audioInputFormats"])
-        assertEquals(0x4154, defaultAudio(withoutOpus)["audioInputFormats"])
+        assertEquals(0x70004154, defaultAudio(withoutOpus)["audioInputFormats"])
         assertEquals(
             0x4154,
             (withoutOpus["audioFormats"] as List<*>)

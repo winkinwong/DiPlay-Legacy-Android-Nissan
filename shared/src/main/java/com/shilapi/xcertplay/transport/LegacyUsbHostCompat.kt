@@ -103,7 +103,8 @@ internal object LegacyUsbHostCompat {
         val active = activeConfiguration(connection)
         Log.i(TAG, "usbfs set-configuration config=$target errno=$errno active=${active ?: "unknown"}")
         onDiagnostic("usb configuration native target=$target errno=$errno after=${active ?: "unknown"}")
-        return ConfigurationResult(errno == 0 && (active == null || active == target), errno, active)
+        val ok = (errno == 0 || (errno == USBFS_EBUSY && before == target && active == target)) && (active == null || active == target)
+        return ConfigurationResult(ok, errno, active)
     }
 
     fun claim(connection: UsbDeviceConnection, usbInterface: UsbInterface): ClaimResult {

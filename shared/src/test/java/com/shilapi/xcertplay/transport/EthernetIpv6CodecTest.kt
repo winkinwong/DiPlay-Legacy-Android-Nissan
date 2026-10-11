@@ -2,7 +2,9 @@ package com.shilapi.xcertplay.transport
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EthernetIpv6CodecTest {
@@ -60,6 +62,45 @@ class EthernetIpv6CodecTest {
         assertEquals(1, result[65].toInt() and 0xff)
         assertArrayEquals(mac, result.copyOfRange(66, 72))
         assertEquals(0xffff, ipv6IcmpChecksumSum(result))
+    }
+
+    @Test
+    fun `detects matching neighbor solicitation`() {
+        val targetIpv6 = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2)
+        val nsPacket = ByteArray(64)
+        nsPacket[0] = 0x60
+        nsPacket[5] = 24
+        nsPacket[6] = 58 // ICMPv6
+        nsPacket[40] = 135.toByte() // Neighbor Solicitation
+        targetIpv6.copyInto(nsPacket, 48)
+
+        assertTrue(EthernetIpv6Codec.isNeighborSolicitationFor(nsPacket, 0, 64, targetIpv6))
+
+        val otherTarget = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3)
+        assertFalse(EthernetIpv6Codec.isNeighborSolicitationFor(nsPacket, 0, 64, otherTarget))
+        assertFalse(EthernetIpv6Codec.isNeighborSolicitationFor(nsPacket, 0, 30, targetIpv6))
+    }
+
+    @Test
+    fun `builds valid neighbor advertisement with correct checksum`() {
+        val hostMac = byteArrayOf(0x02, 0, 0, 0, 0, 1)
+        val peerMac = byteArrayOf(0x02, 0, 0, 0, 0, 2)
+        val hostIp = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
+        val peerIp = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2)
+
+        val frame = EthernetIpv6Codec.buildNeighborAdvertisement(hostMac, peerMac, hostIp, peerIp, solicited = true)
+
+        assertEquals(86, frame.size) // 14 Ethernet + 40 IPv6 + 32 ICMPv6
+        val parsed = EthernetIpv6Codec.parseIpv6(frame)
+        org.junit.Assert.assertNotNull(parsed)
+        val ipv6 = parsed!!.ipv6
+        assertEquals(72, ipv6.size)
+        assertEquals(136, ipv6[40].toInt() and 0xff)
+        assertEquals(0x60, ipv6[44].toInt() and 0xff) // S=1, O=1
+        assertEquals(2, ipv6[64].toInt() and 0xff) // Option type 2
+        assertEquals(1, ipv6[65].toInt() and 0xff) // Option length 1
+        assertArrayEquals(hostMac, ipv6.copyOfRange(66, 72))
+        assertEquals(0xffff, ipv6IcmpChecksumSum(ipv6))
     }
 
     private fun ipv6IcmpChecksumSum(packet: ByteArray): Int {

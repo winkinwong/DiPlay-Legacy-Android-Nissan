@@ -35,6 +35,11 @@ class Ipv6NcmBridge(
 
     @Volatile
     private var peerMac: ByteArray? = null
+    private val hostLinkLocalBytes = InetAddress.getByName(hostLinkLocal).address
+    private val allNodesIpv6 = byteArrayOf(
+        0xff.toByte(), 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
+    )
+    private val allNodesMac = byteArrayOf(0x33, 0x33, 0, 0, 0, 0x01)
     private var loggedInbound = false
     private var loggedOutbound = false
     private var loggedWaitingForPeer = false
@@ -85,11 +90,31 @@ class Ipv6NcmBridge(
                 }
                 val ipv6 = EthernetIpv6Codec.parseIpv6View(frame) ?: continue
                 peerMac = ipv6.sourceMac
+
+                if (EthernetIpv6Codec.isNeighborSolicitationFor(frame, ipv6.payloadOffset, ipv6.payloadLength, hostLinkLocalBytes)) {
+                    val peerIp = frame.copyOfRange(ipv6.payloadOffset + 8, ipv6.payloadOffset + 24)
+                    val isUnspecified = peerIp.all { it == 0.toByte() }
+                    val replyDstMac = if (isUnspecified) allNodesMac else ipv6.sourceMac
+                    val replyDstIp = if (isUnspecified) allNodesIpv6 else peerIp
+                    val naFrame = EthernetIpv6Codec.buildNeighborAdvertisement(
+                        hostMac = hostMac,
+                        peerMac = replyDstMac,
+                        hostIpv6 = hostLinkLocalBytes,
+                        peerIpv6 = replyDstIp,
+                        solicited = !isUnspecified,
+                    )
+                    ncm.send(naFrame, WRITE_TIMEOUT_MILLIS)
+                    val naMsg = "ncm replied with solicited neighbor advertisement to peer ${ipv6.sourceMac.macString()}"
+                    Log.i(TAG, naMsg)
+                    runCatching { onDebugLog(naMsg) }
+                }
+
                 if (!loggedInbound) {
                     loggedInbound = true
                     val inMsg = "ncm first inbound ipv6 bytes=${ipv6.payloadLength} peer=${ipv6.sourceMac.macString()}"
                     Log.i(TAG, inMsg)
                     runCatching { onDebugLog(inMsg) }
+                    sendUnsolicitedNeighborAdvertisement(force = true, targetMac = ipv6.sourceMac)
                 }
                 if (inboundLogBudget > 0) {
                     inboundLogBudget--
@@ -167,7 +192,7 @@ class Ipv6NcmBridge(
      *   Target address (16 bytes)
      *   Option: Target Link-Layer Address (type=2, len=1, MAC: 6 bytes → 8 bytes total)
      */
-    fun sendUnsolicitedNeighborAdvertisement(force: Boolean = false) {
+    fun sendUnsolicitedNeighborAdvertisement(force: Boolean = false, targetMac: ByteArray? = null) {
         if (!running.get()) return
         val now = System.nanoTime()
         synchronized(this) {
@@ -175,62 +200,14 @@ class Ipv6NcmBridge(
             lastNaTimeNanos = now
         }
         try {
-            val src = InetAddress.getByName(hostLinkLocal).address
-            // Destination: all-nodes multicast ff02::1
-            val dst = byteArrayOf(
-                0xff.toByte(), 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
+            val dstMac = targetMac ?: peerMac ?: allNodesMac
+            val frame = EthernetIpv6Codec.buildNeighborAdvertisement(
+                hostMac = hostMac,
+                peerMac = dstMac,
+                hostIpv6 = hostLinkLocalBytes,
+                peerIpv6 = allNodesIpv6,
+                solicited = false,
             )
-            // ICMPv6 NA: type=136, code=0, checksum=0 (computed below), flags=Override(bit5 of byte4)
-            // flags field: R=bit7, S=bit6, O=bit5 of the first byte after checksum → value 0x20000000
-            val icmpv6 = ByteArray(32)
-            icmpv6[0] = 136.toByte()     // type: Neighbor Advertisement
-            icmpv6[1] = 0               // code
-            icmpv6[2] = 0               // checksum high (computed below)
-            icmpv6[3] = 0               // checksum low
-            icmpv6[4] = 0x20.toByte()   // flags: Override bit set (0x20_00_00_00 big-endian)
-            icmpv6[5] = 0
-            icmpv6[6] = 0
-            icmpv6[7] = 0
-            // Target address (our link-local)
-            src.copyInto(icmpv6, 8)
-            // Option type=2 (Target Link-Layer Address), len=1 (units of 8 bytes), 6 bytes MAC
-            icmpv6[24] = 2              // option type: Target Link-Layer Address
-            icmpv6[25] = 1              // option length in units of 8 bytes
-            hostMac.copyInto(icmpv6, 26)
-
-            // IPv6 header (40 bytes)
-            val ipv6 = ByteArray(40 + icmpv6.size)
-            ipv6[0] = 0x60.toByte()    // version=6, traffic class, flow label
-            // payload length = icmpv6.size
-            ipv6[4] = (icmpv6.size ushr 8).toByte()
-            ipv6[5] = icmpv6.size.toByte()
-            ipv6[6] = 58               // next header: ICMPv6
-            ipv6[7] = 255.toByte()     // hop limit
-            src.copyInto(ipv6, 8)      // source
-            dst.copyInto(ipv6, 24)     // destination
-            icmpv6.copyInto(ipv6, 40)
-
-            // Compute ICMPv6 checksum over pseudo-header + payload (RFC 2460 §8.1)
-            var sum = 0L
-            for (i in 8 until 40 step 2) {
-                sum += ((ipv6[i].toInt() and 0xff) shl 8 or (ipv6[i + 1].toInt() and 0xff)).toLong()
-            }
-            sum += icmpv6.size.toLong()
-            sum += 58L // next header
-            val icmpStart = 40
-            var j = icmpStart
-            while (j + 1 < ipv6.size) {
-                sum += ((ipv6[j].toInt() and 0xff) shl 8 or (ipv6[j + 1].toInt() and 0xff)).toLong()
-                j += 2
-            }
-            while (sum ushr 16 != 0L) sum = (sum and 0xffff) + (sum ushr 16)
-            val checksum = sum.inv().toInt() and 0xffff
-            ipv6[42] = (checksum ushr 8).toByte()
-            ipv6[43] = checksum.toByte()
-
-            // Ethernet destination: 33:33:00:00:00:01 (all-nodes multicast)
-            val dstMac = byteArrayOf(0x33, 0x33, 0, 0, 0, 0x01)
-            val frame = EthernetIpv6Codec.build(hostMac, dstMac, ipv6)
             ncm.send(frame, WRITE_TIMEOUT_MILLIS)
             val naMsg = "ncm sent unsolicited neighbor advertisement for $hostLinkLocal"
             Log.i(TAG, naMsg)

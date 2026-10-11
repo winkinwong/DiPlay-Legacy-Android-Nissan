@@ -10,6 +10,7 @@ import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
 import androidx.annotation.RequiresApi
 import com.shilapi.xcertplay.transport.Iap2WirelessSecurity
 import java.io.IOException
@@ -63,25 +64,46 @@ internal class LegacyWifiP2pGroupManager(
                 removeGroupBlocking(p2pChannel, 4_000)
             }
 
-            val createLatch = CountDownLatch(1)
-            val createFailure = AtomicReference<IOException?>()
-            manager.createGroup(p2pChannel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    created = true
-                    createLatch.countDown()
-                }
+            var groupCreated = false
+            var lastCreateFailure: IOException? = null
+            var createAttempts = 0
+            while (!groupCreated && createAttempts < 3 && !closed) {
+                createAttempts++
+                val createLatch = CountDownLatch(1)
+                val createFailure = AtomicReference<IOException?>()
+                manager.createGroup(p2pChannel, object : WifiP2pManager.ActionListener {
+                    override fun onSuccess() {
+                        created = true
+                        groupCreated = true
+                        createLatch.countDown()
+                    }
 
-                override fun onFailure(reason: Int) {
-                    createFailure.set(
-                        IOException("Legacy Wi-Fi Direct createGroup failed code=$reason"),
-                    )
-                    createLatch.countDown()
+                    override fun onFailure(reason: Int) {
+                        createFailure.set(
+                            IOException("Legacy Wi-Fi Direct createGroup failed code=$reason"),
+                        )
+                        createLatch.countDown()
+                    }
+                })
+                if (!await(createLatch, minOf(timeoutMillis, 10_000))) {
+                    throw IOException("Legacy Wi-Fi Direct group creation timed out")
                 }
-            })
-            if (!await(createLatch, minOf(timeoutMillis, 10_000))) {
-                throw IOException("Legacy Wi-Fi Direct group creation timed out")
+                val failure = createFailure.get()
+                if (failure == null) {
+                    groupCreated = true
+                } else {
+                    lastCreateFailure = failure
+                    if (failure.message?.contains("code=2") == true && createAttempts < 3 && !closed) {
+                        diagnostic("Legacy Wi-Fi Direct createGroup busy (code=2); settling and retrying ($createAttempts/3)")
+                        SystemClock.sleep(500)
+                    } else {
+                        break
+                    }
+                }
             }
-            createFailure.get()?.let { throw it }
+            if (!groupCreated) {
+                lastCreateFailure?.let { throw it }
+            }
 
             val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
             var lastReason = "group information unavailable"
