@@ -491,6 +491,14 @@ class AirPlaySession(
                             "airplay handler failed ${request.method} ${request.path} cseq=$cseq",
                             error,
                         )
+                        // Issue #73: Log.e only reaches logcat, but users export the diagnostic
+                        // report — without this line a SETUP handler failure shows up in the
+                        // report as a misleading "peer EOF". Keep the line DiagnosticRedactor-safe
+                        // (no name=/body=/hex=) and uiVisible so it reaches the report.
+                        debugLog(
+                            "airplay handler failed ${request.method} ${request.path}: " +
+                                "${error.javaClass.simpleName}: ${error.message?.take(200)}",
+                        )
                         RtspMessage.Response(status = 500)
                     }
                     debugLog(

@@ -261,6 +261,12 @@ class CarPlayController(
     private val wirelessResourceLock = Any()
     private val wirelessFailureReported = AtomicBoolean(false)
     @Volatile private var firstTcpWatchdog: FirstTcpWatchdog? = null
+    /**
+     * Issue #95: set when a wired AirPlay session becomes active, cleared when the wired
+     * control loop sends StartSession. Lets the wired live loop fail fast when the iPhone
+     * never opens the AirPlay TCP connection.
+     */
+    private val wiredTcpArrived = AtomicBoolean(false)
     private val startupTimer = java.util.concurrent.ScheduledThreadPoolExecutor(1) { task ->
         Thread(task, "diplay-first-tcp-timeout").apply { isDaemon = true }
     }.apply { if (Build.VERSION.SDK_INT >= 21) removeOnCancelPolicy = true }
@@ -313,6 +319,9 @@ class CarPlayController(
             }
             activeSession = session
             if (replacement) restoreDashboardContent(session)
+            // Issue #95: wired first-TCP watchdog — a session only becomes active after the
+            // iPhone opened the AirPlay TCP connection and completed the handshake.
+            if (config.transport != CarPlayTransport.WIRELESS) wiredTcpArrived.set(true)
             debugLog(
                 "AirPlay session active controller=${session.controllerId ?: "unknown"} " +
                     "peer=${session.host}",
@@ -2262,8 +2271,12 @@ class CarPlayController(
                     debugLog("wired $message")
                     if (message.contains("carplay-start-session")) {
                         vpnService?.sendUnsolicitedNeighborAdvertisement(force = true)
+                        // Issue #95: arm the first-TCP watchdog — a new StartSession means any
+                        // previous session no longer counts.
+                        wiredTcpArrived.set(false)
                     }
                 },
+                airPlayTcpArrived = { wiredTcpArrived.get() },
             )
             onStatus(
                 when (result.terminal) {
@@ -2271,6 +2284,15 @@ class CarPlayController(
                         CarPlayStatus.Failed("Wired CarPlay control timed out at ${result.stage}; StartSession sent=${result.carPlayStartSessionsSent}")
                     Iap2WiredControlTerminal.CHANNEL_CLOSED ->
                         CarPlayStatus.Failed("CarPlay control channel closed")
+                    // Issue #84/#61: the iPhone went quiet long after StartSession — the old
+                    // code spun here forever on "控制通道运行中". Fail loudly so the existing
+                    // reconnect path rebuilds the link instead.
+                    Iap2WiredControlTerminal.PEER_SILENT ->
+                        CarPlayStatus.Failed("Wired CarPlay peer silent; resetting link")
+                    // Issue #95: iPhone alive on iAP2 but never opened the AirPlay TCP
+                    // connection — fail fast instead of idling until USB wedges.
+                    Iap2WiredControlTerminal.NO_AIRPLAY_TCP ->
+                        CarPlayStatus.Failed("No AirPlay TCP after CarPlay StartSession; resetting link")
                 },
             )
         } catch (error: Throwable) {
