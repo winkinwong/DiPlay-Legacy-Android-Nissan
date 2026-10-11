@@ -595,6 +595,7 @@
     <string name="diagnostic_report_saved_to_path">报告已保存到：\n%1$s\n\n您也可以在此分享或查看报告。不会自动发送任何内容。</string>
     <string name="view_diagnostic_report">查看报告</string>
     <string name="diagnostic_report_copy_hint">长按报告文本即可选择并复制。如果没有可用的分享应用，可以使用此方式。</string>
+    <string name="diagnostic_report_preview_unavailable">本机无法显示报告预览，但完整报告已保存到存储中。</string>
     <string name="wheel_map_zoom">用方向盘按键缩放仪表盘地图</string>
     <string name="wheel_map_zoom_description">仪表盘显示 CarPlay 地图时，比亚迪自定义按键可在音量和仪表盘地图缩放之间切换音量键。通话时按键始终调节音量。部分车型的中控音量与方向盘发送相同按键，因此缩放模式下它也会缩放地图。使用 DiPlay 方向盘按键服务；仪表盘上的提示需要 ADB。</string>
     <string name="wheel_keys_service_on">方向盘按键服务：已开启</string>

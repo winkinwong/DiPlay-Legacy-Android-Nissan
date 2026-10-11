@@ -632,6 +632,7 @@
     <string name="diagnostic_report_saved_to_path">Your report was saved to:\n%1$s\n\nYou can also share it or view it here. Nothing is sent automatically.</string>
     <string name="view_diagnostic_report">View report</string>
     <string name="diagnostic_report_copy_hint">Touch and hold the report text to select and copy it. You can use this if no sharing app is available.</string>
+    <string name="diagnostic_report_preview_unavailable">The report preview could not be displayed on this device, but the full report was saved to storage.</string>
     <string name="wheel_map_zoom">Zoom the dashboard map with the wheel</string>
     <string name="wheel_map_zoom_description">BYD\'s custom key switches the volume keys between volume and dashboard map zoom while the dashboard shows the CarPlay map. A call always keeps the volume. On some cars the console volume sends the same keys, so it zooms too while zoom is on. Uses DiPlay\'s wheel key service; the note on the dashboard needs ADB.</string>
     <string name="wheel_keys_service_on">Wheel key service: on</string>
