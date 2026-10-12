@@ -51,6 +51,13 @@ class Ipv6NcmBridge(
      * "iPhone never sent TCP" from "SYN lost in bridge/TUN/kernel".
      */
     private var reportInboundBudget = 8
+    /**
+     * Issue #131: the pre-StartSession mDNS/ICMPv6 chatter eats the whole #95 report
+     * budget, so a TCP SYN arriving later never reaches the exported report and "iPhone
+     * never sent SYN" stays indistinguishable from "SYN lost in bridge/TUN/kernel".
+     * TCP packets draw from this reserved budget first, keeping SYN visibility.
+     */
+    private var reportTcpBudget = 8
     private var outboundLogBudget = 24
     @Volatile
     private var lastNaTimeNanos = 0L
@@ -132,7 +139,14 @@ class Ipv6NcmBridge(
                     inboundLogBudget--
                     Log.i(TAG, "ncm inbound ${frame.summary(ipv6.payloadOffset)}")
                 }
-                if (reportInboundBudget > 0) {
+                val inboundNextHeader =
+                    if (ipv6.payloadLength >= 40) (frame[ipv6.payloadOffset + 6].toInt() and 0xff) else -1
+                if (inboundNextHeader == 6 && reportTcpBudget > 0) {
+                    // Issue #131: TCP packets draw from the reserved budget so a SYN
+                    // arriving after StartSession stays visible in the exported report.
+                    reportTcpBudget--
+                    runCatching { onDebugLog("ncm inbound diag ${frame.diagnosticSummary(ipv6.payloadOffset)}") }
+                } else if (reportInboundBudget > 0) {
                     reportInboundBudget--
                     runCatching { onDebugLog("ncm inbound diag ${frame.diagnosticSummary(ipv6.payloadOffset)}") }
                 }
