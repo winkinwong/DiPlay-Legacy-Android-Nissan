@@ -420,6 +420,17 @@ class CarPlayController(
                     "wireless CarPlay Bluetooth handoff requested; " +
                         "waiting for tunnel iAP2 readiness",
                 )
+                // Issue #128: on head units with native Bluetooth music, the iPhone is often
+                // also paired with that A2DP sink. iOS then resolves audio away from CarPlay
+                // (kept on the phone) and never opens the AirPlay audio stream. This hint makes
+                // the conflict visible in the report; the fix is user-side (forget the native
+                // BT pairing), the app cannot re-route iOS audio.
+                debugLog(
+                    "wireless audio route hint: if this iPhone is also paired with the head " +
+                        "unit's native Bluetooth music, iOS may keep audio on the phone and " +
+                        "never request the CarPlay audio stream; disconnect/forget that " +
+                        "pairing so CarPlay is the only audio route",
+                )
                 armWirelessHandoffWatchdog(wirelessGeneration.get())
                 maybeCompleteWirelessHandoff()
             }
