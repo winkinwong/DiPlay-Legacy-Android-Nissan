@@ -9,6 +9,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.shilapi.xcertplay.airplay.AirPlayListenerIdentity
+import com.shilapi.xcertplay.airplay.AirPlaySocketBinder
 import com.shilapi.xcertplay.airplay.AirPlayTcpAccepted
 import com.shilapi.xcertplay.airplay.isInternalAirPlayPeer
 import com.shilapi.xcertplay.airplay.AirPlayConfig
@@ -186,11 +187,23 @@ class CarPlayVpnService : VpnService() {
             runCatching { listener.onDebugLog("wired NCM IPv6 bridge started") }
 
             attachStage = "AirPlay listener bind"
+            // Issue #133: on some vendor kernels the iPhone's TCP SYN reaches the TUN but the
+            // kernel never answers (no SYN-ACK, no RST). A listener bound to a scopeless
+            // link-local address is fragile there: inbound packets carry the TUN interface's
+            // scope while the socket has none, so the lookup may never match. Scope the bind
+            // address to the TUN interface when it can be resolved (same remedy family as
+            // #124). This must run after establish(): only then does the kernel own the
+            // address on an interface. Falls back to the scopeless address when the scope
+            // cannot be resolved, preserving today's behavior.
+            val scopedAddress = AirPlaySocketBinder.scopedLinkLocal(address)
             startAirPlayServer(
                 generation,
-                AirPlayAttachment(address, config, identity, pairings, mfi, listener, media),
+                AirPlayAttachment(scopedAddress, config, identity, pairings, mfi, listener, media),
             )
             runCatching { listener.onDebugLog("wired AirPlay listener bound port=${boundPort()}") }
+            boundPort()?.let { port ->
+                runCatching { listener.onDebugLog("wired airplay listen kernel-check: ${verifyTcp6Listen(port)}") }
+            }
             AttachResult.Started
         } catch (error: Exception) {
             lastAttachFailure = "$attachStage: ${attachFailure(error)}"
@@ -255,6 +268,43 @@ class CarPlayVpnService : VpnService() {
 
     /** Port the AirPlay listener actually bound, which may differ from the configured port. */
     fun boundPort(): Int? = attachment?.config?.port
+
+    /**
+     * Issue #133: the iPhone's TCP SYN reached the TUN on a T3 head unit but the kernel never
+     * emitted SYN-ACK or RST. Java's bind() succeeding does not prove the kernel registered the
+     * listener (wedged netd/VPN state can lie, see #79/#127). /proc/net/tcp6 is world-readable:
+     * confirm a LISTEN socket actually exists for our port so the next diagnostic report can
+     * distinguish "listener never registered" from "SYN lost between TUN ingress and TCP".
+     */
+    private fun verifyTcp6Listen(port: Int): String {
+        val portHex = port.toString(16).uppercase().padStart(4, '0')
+        return try {
+            var found = false
+            java.io.File("/proc/net/tcp6").bufferedReader().use { reader ->
+                var line = reader.readLine()
+                while (line != null) {
+                    // Columns: sl | local_address | rem_address | st | ...
+                    val fields = line.trim().split(Regex("\\s+"))
+                    if (fields.size >= 4 &&
+                        fields[1].endsWith(":$portHex", ignoreCase = true) &&
+                        fields[3].equals("0A", ignoreCase = true)
+                    ) {
+                        found = true
+                        break
+                    }
+                    line = reader.readLine()
+                }
+            }
+            if (found) {
+                "kernel LISTEN present on tcp6 port $port"
+            } else {
+                "WARNING: no LISTEN socket for port $port in /proc/net/tcp6 " +
+                    "(bind succeeded but the kernel never registered it; reboot the head unit)"
+            }
+        } catch (error: Exception) {
+            "/proc/net/tcp6 unreadable: ${error.message}"
+        }
+    }
 
     override fun onDestroy() {
         detach()
