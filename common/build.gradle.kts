@@ -36,6 +36,9 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
+    // OkHttp 3.12 is the last API 19-compatible line. Keep the legacy updater off
+    // Android 4.4's system HttpsURLConnection, which can fall back to SSLv3.
+    implementation("com.squareup.okhttp3:okhttp-urlconnection:3.12.13")
     testImplementation(libs.junit)
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("org.mockito:mockito-core:5.20.0")

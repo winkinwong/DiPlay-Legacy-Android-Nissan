@@ -15,6 +15,25 @@ class DiPlayUpdateClientTest {
     private val name = "DiPlay-v0.2.34-legacy-release.apk"
     private val prefix = "https://github.com/programmerguohuajing/DiPlay-Legacy-Android/releases/download/v0.2.34/"
 
+    @Test fun legacyHttpOnlyAllowsTls12NeverSsl3() {
+        val spec = DiPlayUpdateClient.legacyTlsSpec()
+        assertTrue(spec.isTls)
+        assertEquals(listOf(okhttp3.TlsVersion.TLS_1_2), spec.tlsVersions())
+        assertFalse(spec.tlsVersions()!!.contains(okhttp3.TlsVersion.SSL_3_0))
+    }
+
+    @Test fun retriesOnlyWhenVendorForcesDisabledSslv3() {
+        val disabled = javax.net.ssl.SSLHandshakeException(
+            "No enabled protocols; SSLv3 is no longer supported and was filtered from the list")
+        assertTrue(DiPlayUpdateClient.isObsoleteSslv3Failure(disabled))
+        assertTrue(DiPlayUpdateClient.isObsoleteSslv3Failure(
+            java.io.IOException("wrapped", disabled)))
+        assertFalse(DiPlayUpdateClient.isObsoleteSslv3Failure(
+            javax.net.ssl.SSLHandshakeException("Certificate chain validation failed")))
+        assertFalse(DiPlayUpdateClient.isObsoleteSslv3Failure(
+            java.net.SocketTimeoutException("Read timed out")))
+    }
+
     @Test fun githubApkPrefersDomesticRelayWithDirectFallback() {
         val url = prefix + name
         assertEquals(listOf("https://ghproxy.net/$url", url), DiPlayUpdateClient.downloadCandidates(url))

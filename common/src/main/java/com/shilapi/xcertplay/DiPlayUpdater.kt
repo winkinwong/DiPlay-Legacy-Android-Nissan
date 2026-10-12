@@ -275,7 +275,9 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
         DiPlayUpdateDialogs.confirm(
             activity,
             activity.getString(R.string.update_failed),
-            error.message ?: error.javaClass.simpleName,
+            if (DiPlayUpdateClient.isObsoleteSslv3Failure(error))
+                activity.getString(R.string.update_tls_unavailable)
+            else error.message ?: error.javaClass.simpleName,
             activity.getString(android.R.string.ok),
         ) {}
     }

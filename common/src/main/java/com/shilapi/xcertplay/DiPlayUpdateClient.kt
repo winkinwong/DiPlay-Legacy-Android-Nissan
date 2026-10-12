@@ -6,7 +6,15 @@ import java.io.File
 import java.io.IOException
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.X509TrustManager
+import okhttp3.ConnectionSpec
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.TlsVersion
+import okhttp3.OkUrlFactory
 
 /** GitHub-only updates with a domestic HTTPS mirror for release assets. */
 internal object DiPlayUpdateClient {
@@ -212,7 +220,9 @@ internal object DiPlayUpdateClient {
         appContext = context.applicationContext
     }
 
-    private val legacyTlsFactory by lazy {
+    private data class LegacyTls(val factory: SSLSocketFactory, val trust: X509TrustManager)
+
+    private val legacyTls by lazy {
         val context = appContext ?: throw IOException("Updater trust store not initialized")
         val factory = java.security.cert.CertificateFactory.getInstance("X.509")
         val store = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType()).apply { load(null) }
@@ -241,9 +251,55 @@ internal object DiPlayUpdateClient {
             javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm(),
         )
         trust.init(store)
-        javax.net.ssl.SSLContext.getInstance("TLS", org.conscrypt.Conscrypt.newProvider()).apply {
-            init(null, trust.trustManagers, null)
-        }.socketFactory
+        val manager = trust.trustManagers.filterIsInstance<X509TrustManager>().single()
+        // TLSv1.2 is mandatory for GitHub. Never fall back to SSLv3 or relax
+        // hostname / certificate validation for old vendor head units.
+        val tlsFactory = javax.net.ssl.SSLContext.getInstance(
+            "TLSv1.2", org.conscrypt.Conscrypt.newProvider(),
+        ).apply { init(null, arrayOf(manager), null) }.socketFactory
+        LegacyTls(tlsFactory, manager)
+    }
+
+    /**
+     * Some API 19 vendor frameworks feed an SSLv3-only ConnectionSpec to their
+     * system HttpsURLConnection even with a modern Conscrypt socket factory.
+     * Use a separate API 19-capable HTTP stack with an explicit TLS 1.2 spec.
+     * Manual allowlisted redirect handling below remains unchanged.
+     */
+    internal fun legacyTlsSpec(): ConnectionSpec =
+        ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+            .tlsVersions(TlsVersion.TLS_1_2)
+            .build()
+
+    private val legacyHttp by lazy {
+        val tls = legacyTls
+        @Suppress("DEPRECATION")
+        OkUrlFactory(OkHttpClient.Builder()
+            .sslSocketFactory(tls.factory, tls.trust)
+            .connectionSpecs(listOf(legacyTlsSpec()))
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .retryOnConnectionFailure(false)
+            .connectTimeout(12, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build())
+    }
+
+    internal fun isObsoleteSslv3Failure(error: Throwable): Boolean =
+        generateSequence(error) { it.cause }.take(8).any { cause ->
+            val message = cause.message.orEmpty()
+            message.contains("No enabled protocols", ignoreCase = true) &&
+                message.contains("SSLv3", ignoreCase = true)
+        }
+
+    private fun configureRequest(connection: HttpsURLConnection, method: String) {
+        connection.instanceFollowRedirects = false
+        connection.requestMethod = method
+        connection.connectTimeout = 12_000
+        connection.readTimeout = 20_000
+        connection.setRequestProperty("User-Agent", "DiPlay-Legacy-Android-Updater")
+        connection.setRequestProperty("Accept", "application/vnd.github+json")
     }
 
     private fun connect(url: String, method: String = "GET"): HttpsURLConnection {
@@ -257,17 +313,32 @@ internal object DiPlayUpdateClient {
             if (candidate.protocol != "https" || !approvedHost) {
                 throw IOException("Untrusted update redirect")
             }
-            val connection = candidate.openConnection() as HttpsURLConnection
-            if (android.os.Build.VERSION.SDK_INT < 22) {
-                connection.sslSocketFactory = legacyTlsFactory
+            var connection = if (android.os.Build.VERSION.SDK_INT < 22) {
+                legacyHttp.open(candidate) as HttpsURLConnection
+            } else {
+                candidate.openConnection() as HttpsURLConnection
             }
-            connection.instanceFollowRedirects = false
-            connection.requestMethod = method
-            connection.connectTimeout = 12_000
-            connection.readTimeout = 20_000
-            connection.setRequestProperty("User-Agent", "DiPlay-Legacy-Android-Updater")
-            connection.setRequestProperty("Accept", "application/vnd.github+json")
-            val status = connection.responseCode
+            configureRequest(connection, method)
+            val status = try {
+                connection.responseCode
+            } catch (failure: IOException) {
+                connection.disconnect()
+                // OEM Android 5+ frameworks can also expose an SSLv3-only
+                // TLS fallback; retry that exact failure with bundled Conscrypt.
+                // Do not retry certificate, hostname, or other handshake errors.
+                if (android.os.Build.VERSION.SDK_INT < 22 || !isObsoleteSslv3Failure(failure)) {
+                    throw failure
+                }
+                android.util.Log.w("DiPlayUpdate", "System TLS offered only SSLv3; retrying TLS 1.2")
+                connection = legacyHttp.open(candidate) as HttpsURLConnection
+                configureRequest(connection, method)
+                try {
+                    connection.responseCode
+                } catch (retryFailure: IOException) {
+                    connection.disconnect()
+                    throw retryFailure
+                }
+            }
             if (status in listOf(301, 302, 303, 307, 308)) {
                 val redirect = connection.getHeaderField("Location")
                     ?: throw IOException("Update redirect has no target")

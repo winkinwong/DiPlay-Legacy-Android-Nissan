@@ -1,3 +1,12 @@
+# DiPlay 0.2.45 — 2026-10-12
+
+- Fix old Android head-unit update checks that negotiate only obsolete SSLv3 protocols; use a bundled TLS 1.2 HTTPS stack for Android 4.4/5.0 and a narrowly scoped fallback for affected newer vendor ROMs.
+- Preserve certificate and host validation, approved GitHub redirect targets and APK SHA-256/signature verification. Improve localized failure guidance.
+- Add TLS downgrade regression tests and live GitHub update-check instrumentation on Android 4.4 and Android 11.
+- Include the latest upstream NCM TCP diagnostic budget/SYN observability improvements.
+
+See [v0.2.45 release notes](docs/RELEASE-NOTES-0.2.45.md).
+
 # DiPlay 0.2.44 — 2026-10-12
 
 - Rebuild software-update dialogs in the navy/cyan car-display style: release notes, version banner, progress stages, and post-download installation confirmation.

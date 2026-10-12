@@ -37,4 +37,5 @@
     <string name="update_progress_step_prepare">準備安裝套件</string>
     <string name="update_preparing">正在準備安裝套件…</string>
     <string name="update_continue_background">背景繼續</string>
+    <string name="update_tls_unavailable">目前車機無法與更新伺服器建立安全的 TLS 連線。請使用其他瀏覽器或電腦從 DiPlay 官方 GitHub Release 下載 APK，再手動安裝。</string>
 </resources>

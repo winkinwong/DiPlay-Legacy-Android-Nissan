@@ -37,4 +37,5 @@
     <string name="update_progress_step_prepare">Prepare installation package</string>
     <string name="update_preparing">Preparing installation package…</string>
     <string name="update_continue_background">Continue in background</string>
+    <string name="update_tls_unavailable">This device cannot establish a secure TLS connection to the update server. Download the APK from the official GitHub Release using another browser or a computer, then install it manually.</string>
 </resources>
