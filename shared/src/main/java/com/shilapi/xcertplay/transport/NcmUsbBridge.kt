@@ -105,7 +105,9 @@ class NcmUsbBridge internal constructor(
             consecutiveWriteFailures += 1
             Log.i(
                 IphoneCarPlayConfiguration.TAG,
-                "ncm bulk-out failed $consecutiveWriteFailures/$MAX_CONSECUTIVE_WRITE_FAILURES while the data path was live",
+                "ncm bulk-out failed $consecutiveWriteFailures/$MAX_CONSECUTIVE_WRITE_FAILURES " +
+                    "while the data path was live: endpoint=0x${outEndpoint.address.toString(16)} " +
+                    "requested=${block.size} transferred=$transferred",
             )
             if (consecutiveWriteFailures >= MAX_CONSECUTIVE_WRITE_FAILURES) {
                 // USBMUX tears its whole session down for the same class of failure.
