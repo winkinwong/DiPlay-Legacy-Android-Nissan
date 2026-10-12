@@ -532,8 +532,12 @@ class Iap2UsbSession internal constructor(
                 sharedConnection.await(request, timeoutMillis)
             } catch (_: TimeoutException) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    drainCancelledRead(request)
+                    // Upstream #625: a read that completes between the timeout and the cancel
+                    // can no longer be cancelled — drain it and keep its bytes so the session
+                    // survives instead of dying every few minutes.
+                    val drained = drainTimedOutRead(request)
                     readQueued = false
+                    if (drained != null) return@synchronized drained
                 }
                 // Below Android 8 (API 26), request stays queued for the next poll because
                 // cancel() is unreliable on legacy usbfs drivers and closing an in-flight
@@ -590,17 +594,30 @@ class Iap2UsbSession internal constructor(
         if (closed) throw IphoneUsbException.DeviceUnavailable("USBMUX session is closed")
     }
 
-    private fun drainCancelledRead(request: UsbRequest) {
-        if (!request.cancel()) {
-            throw failSession("Android could not cancel timed out USBMUX read request")
-        }
+    /**
+     * Upstream #625: cancels a read that timed out and takes it back from Android. A read that
+     * completes between the timeout and the cancel can no longer be cancelled: it is already on
+     * its way back. That race ended the whole session every few minutes. The read is drained
+     * either way, and any bytes it carries are returned so the USBMUX stream stays intact.
+     */
+    private fun drainTimedOutRead(request: UsbRequest): ByteArray? {
+        val cancelled = request.cancel()
         val completed = try {
             sharedConnection.await(request, CANCEL_DRAIN_TIMEOUT_MILLIS)
         } catch (_: TimeoutException) {
-            throw failSession("Timed out draining cancelled USBMUX read request")
+            throw failSession(
+                if (cancelled) "Timed out draining cancelled USBMUX read request"
+                else "Android could not cancel timed out USBMUX read request",
+            )
         }
         if (completed !== request) {
             throw failSession("Android did not drain the cancelled USBMUX read request")
+        }
+        val position = directReadBuffer.position()
+        if (position <= 0) return null
+        return ByteArray(position).also {
+            directReadBuffer.flip()
+            directReadBuffer.get(it)
         }
     }
 
