@@ -20,4 +20,9 @@
     <string name="update_disconnect_first">Disconnect CarPlay and park safely before downloading or installing an update.</string>
     <string name="update_install_unavailable">The system installer is unavailable on this device.</string>
     <string name="update_failed">Update failed</string>
+    <string name="update_verifying">Verifying the APK SHA-256 and signing certificate…</string>
+    <string name="update_downloading_phase">Downloading the signed update package</string>
+    <string name="update_manual_saved">A verified copy was also saved for manual installation:\n%1$s</string>
+    <string name="update_manual_install_help">This head unit did not accept the system APK installer intent. The downloaded and verified APK is saved at:\n\n%1$s\n\nWhile parked, open the file manager and select this APK from Downloads. If the device has no installer app, use a PC with ADB or the manufacturer\'s installer.</string>
+    <string name="update_manual_install_no_copy">The head unit did not accept the system APK installer intent, and public Downloads storage was unavailable. Download the APK on a computer from the official DiPlay GitHub Release and install it using ADB or your head unit\'s installer while parked.</string>
 </resources>

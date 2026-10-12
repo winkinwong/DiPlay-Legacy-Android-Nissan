@@ -20,4 +20,9 @@
     <string name="update_disconnect_first">請停車並中斷 CarPlay 後下載或安裝更新。</string>
     <string name="update_install_unavailable">目前車機無法開啟系統 APK 安裝程式。</string>
     <string name="update_failed">更新失敗</string>
+    <string name="update_verifying">正在驗證 APK 的 SHA-256、套件名稱與簽章…</string>
+    <string name="update_downloading_phase">正在下載已簽章的更新安裝包</string>
+    <string name="update_manual_saved">已額外儲存供手動安裝的驗證副本：\n%1$s</string>
+    <string name="update_manual_install_help">車機無法透過系統安裝入口開啟 APK。已驗證的安裝包儲存於：\n\n%1$s\n\n請停車後使用車機檔案管理員前往下載目錄，點擊 APK 手動安裝。若車機沒有安裝程式，可使用電腦的 ADB 或車機廠商提供的安裝工具。</string>
+    <string name="update_manual_install_no_copy">車機無法開啟系統 APK 安裝程式，且公共下載目錄無法使用。請在電腦上從 DiPlay 官方 GitHub Release 下載 APK，再使用 ADB 或車機廠商的安裝工具安裝。</string>
 </resources>

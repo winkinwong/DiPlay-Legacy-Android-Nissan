@@ -1,19 +1,12 @@
 package com.shilapi.xcertplay
 
-import android.app.AlertDialog
-import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.view.Gravity
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.FileProvider
 import com.shilapi.xcertplay.host.R
 import java.io.File
 import java.io.IOException
@@ -34,7 +27,8 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
     @Volatile private var cancelled = false
     private var awaitingInstallPermission: File? = null
     private var pendingRelease: DiPlayUpdateClient.Release? = null
-    private var downloadDialog: AlertDialog? = null
+    private var publicInstallCopy: File? = null
+    private var downloadDialog: DiPlayUpdateDialogs.ProgressHandle? = null
 
     fun autoEnabled(): Boolean = prefs.getBoolean("auto_check", true)
     fun setAutoEnabled(enabled: Boolean) {
@@ -85,42 +79,25 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
 
     private fun showRelease(release: DiPlayUpdateClient.Release) {
         val notes = release.notes.ifBlank { activity.getString(R.string.update_no_notes) }
-        AlertDialog.Builder(activity)
-            .setTitle(activity.getString(R.string.update_available, release.tag))
-            .setMessage(notes + "\n\n" + activity.getString(R.string.update_parked_notice))
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.update_download) { _, _ -> download(release) }
-            .show()
+        DiPlayUpdateDialogs.confirm(
+            activity,
+            activity.getString(R.string.update_available, release.tag),
+            notes + "\n\n" + activity.getString(R.string.update_parked_notice),
+            activity.getString(R.string.update_download),
+            activity.getString(android.R.string.cancel),
+        ) { download(release) }
     }
 
     private fun download(release: DiPlayUpdateClient.Release) {
         if (closed || busy) return
         if (CarPlayBackgroundSession.hasSession()) {
-            AlertDialog.Builder(activity).setMessage(R.string.update_disconnect_first)
-                .setPositiveButton(android.R.string.ok, null).show()
+            showNotice(R.string.update_disconnect_first)
             return
         }
         cancelled = false
         busy = true
-        val meter = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100
-        }
-        val label = TextView(activity).apply {
-            text = "0%"
-            gravity = Gravity.CENTER
-        }
-        val layout = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 16)
-            addView(meter)
-            addView(label)
-        }
-        downloadDialog = AlertDialog.Builder(activity)
-            .setTitle(R.string.update_downloading)
-            .setView(layout)
-            .setNegativeButton(android.R.string.cancel) { _, _ -> cancelled = true }
-            .setCancelable(false)
-            .show()
+        publicInstallCopy = null
+        downloadDialog = DiPlayUpdateDialogs.progress(activity) { cancelled = true }
         worker.execute {
             try {
                 var lastPercent = -1
@@ -130,23 +107,30 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
                     if (cancelled || closed) throw IOException("Download cancelled")
                     if (percent != lastPercent) {
                         lastPercent = percent
-                        onUi {
-                            meter.progress = percent
-                            label.text = "$percent%"
-                        }
+                        onUi { downloadDialog?.update(percent) }
                     }
                 }
                 if (cancelled || closed) return@execute
+                onUi { downloadDialog?.verifying(activity) }
                 verifyPackage(file, release)
+                // Legacy vendor installers may be unable to read FileProvider content://
+                // URIs. Keep a second verified copy in Downloads for file:// or manual use.
+                val sharedCopy = try {
+                    DiPlayApkInstaller.createPublicCopy(activity, file) {
+                        verifyPackage(it, release)
+                    }
+                } catch (error: Exception) {
+                    // Public storage is optional. Do not reject a signed download on an OEM
+                    // whose Downloads volume is missing or throws an unexpected exception.
+                    android.util.Log.w("DiPlayUpdate", "Public APK copy unavailable", error)
+                    null
+                }
+                if (cancelled || closed) return@execute
                 onUi {
+                    publicInstallCopy = sharedCopy
                     downloadDialog?.dismiss()
                     downloadDialog = null
-                    AlertDialog.Builder(activity)
-                        .setTitle(activity.getString(R.string.update_install_title, release.tag))
-                        .setMessage(R.string.update_install_notice)
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .setPositiveButton(R.string.update_install) { _, _ -> requestInstall(file) }
-                        .show()
+                    showInstallPrompt(file, release.tag)
                 }
             } catch (error: Exception) {
                 android.util.Log.w("DiPlayUpdate", "Update download or verification failed", error)
@@ -177,49 +161,80 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
         }
     }
 
+    private fun showInstallPrompt(file: File, version: String) {
+        val copiedToDownloads = publicInstallCopy
+        val message = buildString {
+            append(activity.getString(R.string.update_install_notice))
+            if (copiedToDownloads != null) {
+                append("\n\n")
+                append(activity.getString(R.string.update_manual_saved, copiedToDownloads.absolutePath))
+            }
+        }
+        DiPlayUpdateDialogs.confirm(
+            activity,
+            activity.getString(R.string.update_install_title, version),
+            message,
+            activity.getString(R.string.update_install),
+            activity.getString(android.R.string.cancel),
+        ) { requestInstall(file) }
+    }
+
     private fun requestInstall(file: File) {
         if (CarPlayBackgroundSession.hasSession()) {
-            AlertDialog.Builder(activity).setMessage(R.string.update_disconnect_first)
-                .setPositiveButton(android.R.string.ok, null).show()
+            showNotice(R.string.update_disconnect_first)
             return
         }
         if (Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
             awaitingInstallPermission = file
-            AlertDialog.Builder(activity)
-                .setTitle(R.string.update_permission_title)
-                .setMessage(R.string.update_permission_message)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.update_open_settings) { _, _ ->
-                    try {
-                        activity.startActivity(
-                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:${activity.packageName}")),
-                        )
-                    } catch (_: Exception) {
-                        toast(R.string.update_install_unavailable)
-                    }
-                }.show()
-            return
-        }
-        try {
-            // A file:// URI to app-private cache is unreadable by the system installer on KitKat.
-            // FileProvider works on API 19+, granting access only to this verified APK.
-            val uri = FileProvider.getUriForFile(
-                activity, "${activity.packageName}.apk-updates", file,
-            )
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                if (Build.VERSION.SDK_INT >= 16) {
-                    clipData = ClipData.newUri(activity.contentResolver, "DiPlay update", uri)
+            DiPlayUpdateDialogs.confirm(
+                activity,
+                activity.getString(R.string.update_permission_title),
+                activity.getString(R.string.update_permission_message),
+                activity.getString(R.string.update_open_settings),
+                activity.getString(android.R.string.cancel),
+            ) {
+                try {
+                    activity.startActivity(
+                        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${activity.packageName}")),
+                    )
+                } catch (error: Exception) {
+                    showInstallerUnavailable(error)
                 }
             }
-            activity.startActivity(intent)
-            awaitingInstallPermission = null
-        } catch (error: Exception) {
-            android.util.Log.w("DiPlayUpdate", "System installer unavailable", error)
-            toast(R.string.update_install_unavailable)
+            return
         }
+        val result = DiPlayApkInstaller.launch(activity, file, publicInstallCopy)
+        if (result.launched) {
+            awaitingInstallPermission = null
+        } else {
+            showInstallerUnavailable(result.error)
+        }
+    }
+
+    private fun showInstallerUnavailable(error: Exception?) {
+        android.util.Log.w("DiPlayUpdate", "No system package installer accepted the verified APK", error)
+        val copy = publicInstallCopy
+        val message = if (copy?.isFile == true) {
+            activity.getString(R.string.update_manual_install_help, copy.absolutePath)
+        } else {
+            activity.getString(R.string.update_manual_install_no_copy)
+        }
+        DiPlayUpdateDialogs.confirm(
+            activity,
+            activity.getString(R.string.update_install_unavailable),
+            message,
+            activity.getString(android.R.string.ok),
+        ) {}
+    }
+
+    private fun showNotice(message: Int) {
+        DiPlayUpdateDialogs.confirm(
+            activity,
+            activity.getString(R.string.update_failed),
+            activity.getString(message),
+            activity.getString(android.R.string.ok),
+        ) {}
     }
 
     fun onResume() {
@@ -231,9 +246,13 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
         val file = awaitingInstallPermission ?: return
         if (Build.VERSION.SDK_INT >= 26 && activity.packageManager.canRequestPackageInstalls()) {
             awaitingInstallPermission = null
-            AlertDialog.Builder(activity).setMessage(R.string.update_install_notice)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.update_install) { _, _ -> requestInstall(file) }.show()
+            DiPlayUpdateDialogs.confirm(
+                activity,
+                activity.getString(R.string.update_install_title, ""),
+                activity.getString(R.string.update_install_notice),
+                activity.getString(R.string.update_install),
+                activity.getString(android.R.string.cancel),
+            ) { requestInstall(file) }
         }
     }
 
@@ -248,10 +267,12 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
     }
 
     private fun showFailure(error: Exception) {
-        AlertDialog.Builder(activity)
-            .setTitle(R.string.update_failed)
-            .setMessage(error.message ?: error.javaClass.simpleName)
-            .setPositiveButton(android.R.string.ok, null).show()
+        DiPlayUpdateDialogs.confirm(
+            activity,
+            activity.getString(R.string.update_failed),
+            error.message ?: error.javaClass.simpleName,
+            activity.getString(android.R.string.ok),
+        ) {}
     }
 
     private fun onUi(action: () -> Unit) {
