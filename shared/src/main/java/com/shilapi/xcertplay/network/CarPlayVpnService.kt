@@ -447,7 +447,7 @@ class CarPlayVpnService : VpnService() {
          * Retrying the identical establish() cannot recover wedged netd VPN state, so the
          * original error is preserved and a reboot/reinstall recovery note is appended.
          */
-        internal fun withWedgedVpnHint(error: Throwable): Exception {
+        internal fun withWedgedVpnHint(error: Throwable): Throwable {
             val wedged = generateSequence(error) { it.cause }.take(8).any { cause ->
                 val message = cause.message.orEmpty()
                 message.contains("fwmark rule add", ignoreCase = true) &&
