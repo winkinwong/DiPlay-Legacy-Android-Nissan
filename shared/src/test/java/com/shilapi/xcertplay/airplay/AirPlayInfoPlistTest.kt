@@ -233,7 +233,7 @@ class AirPlayInfoPlistTest {
     }
 
     @Test
-    fun opusIsExcludedFromOutputWhenOpusAudioOutputIsDisabled() {
+    fun disabledOpusAudioOutputKeepsOnlyRequiredDefaultStreamOpus() {
         val base = AirPlayConfig(
             deviceName = "test",
             deviceId = "02:00:00:00:00:02",
@@ -252,7 +252,11 @@ class AirPlayInfoPlistTest {
         val withoutFormats = (withoutOpus["audioFormats"] as List<*>)
             .map { it as Map<*, *> }
             .filter { (it["audioOutputFormats"] as? Int ?: 0) and 0x70000000 != 0 }
-        assertTrue(withoutFormats.isEmpty())
+        // iOS still requires Opus advertised on the type-100 default stream.
+        // On legacy decoders, no other output stream should advertise Opus.
+        assertEquals(1, withoutFormats.size)
+        assertEquals(100, withoutFormats.single()["type"])
+        assertEquals("default", withoutFormats.single()["audioType"])
     }
 
     @Test

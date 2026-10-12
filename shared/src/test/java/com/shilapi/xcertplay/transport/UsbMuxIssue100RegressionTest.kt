@@ -363,7 +363,8 @@ class EvidenceUsbRequestShadow {
     }
     @Implementation fun queue(buffer: ByteBuffer, length: Int): Boolean = queue(buffer)
     @Implementation fun cancel(): Boolean {
-        UsbEvidenceReplay.cancelled = true
+        // A failed cancel leaves the request queued, so the subsequent drain must timeout.
+        UsbEvidenceReplay.cancelled = UsbEvidenceReplay.cancelReturns
         return UsbEvidenceReplay.cancelReturns
     }
     @Implementation fun close() = Unit

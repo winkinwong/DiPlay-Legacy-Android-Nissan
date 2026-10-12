@@ -6,7 +6,6 @@ import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
-import java.net.Inet6Address
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
