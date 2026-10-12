@@ -68,9 +68,11 @@ class CarPlayVpnService : VpnService() {
     @Volatile var lastAttachFailure: String? = null
         private set
     /**
-     * Set once a per-app VPN establish fails: this ROM's netd cannot do uid fwmark rules
-     * (e.g. Allwinner T3 units faking SDK 27 on a real API 19 ROM). Later attaches go
-     * straight to the route-only VPN instead of hitting the same rejection every retry.
+     * Set once a per-app VPN establish fails on a genuine API 21+ ROM: its netd cannot
+     * do uid fwmark rules. Later attaches go straight to the route-only VPN instead of
+     * hitting the same rejection every retry. (On 4.4-framework ROMs such as the
+     * Allwinner T3 the framework adds the UID rule itself, so this memo does not apply;
+     * see withStaleUidRuleHint.)
      */
     @Volatile private var perAppVpnUnsupported = false
 
@@ -122,28 +124,39 @@ class CarPlayVpnService : VpnService() {
             val tunFd = try {
                 builder.establish()
             } catch (error: Exception) {
-                if (Build.VERSION.SDK_INT >= 21 && !perAppVpnUnsupported && isUidRuleUnsupported(error)) {
-                    // Remember: this ROM's netd cannot do per-app VPN; go straight to
-                    // route-only next time instead of hitting the same rejection every retry.
-                    perAppVpnUnsupported = true
-                    runCatching {
-                        listener.onDebugLog("wired per-app VPN UID rule rejected by ROM netd: ${attachFailure(error)}; trying link-local route-only VPN")
-                    }
-                    val fallbackBuilder = Builder()
-                        .addAddress(linkLocal, LINK_PREFIX)
-                        .addRoute(LINK_LOCAL_ROUTE, LINK_PREFIX)
-                        .setSession(SESSION_NAME)
-                        .setMtu(TUN_MTU)
-                    fallbackBuilder.setBlocking(true)
-                    attachStage = "VPN establish (route-only fallback after UID rule failure)"
-                    try {
-                        fallbackBuilder.establish()
-                    } catch (fallbackError: Exception) {
-                        fallbackError.addSuppressed(error)
+                if (!perAppVpnUnsupported && isUidRuleUnsupported(error)) {
+                    if (realSdkInt() >= 21) {
+                        // Genuine API 21+: our per-app attempt triggered the rejection;
+                        // retry without it.
+                        // Remember: this ROM's netd cannot do per-app VPN; go straight to
+                        // route-only next time instead of hitting the same rejection every retry.
+                        perAppVpnUnsupported = true
                         runCatching {
-                            listener.onDebugLog("wired route-only VPN also rejected: ${attachFailure(fallbackError)}; original per-app error: ${attachFailure(error)}")
+                            listener.onDebugLog("wired per-app VPN UID rule rejected by ROM netd: ${attachFailure(error)}; trying link-local route-only VPN")
                         }
-                        throw fallbackError
+                        val fallbackBuilder = Builder()
+                            .addAddress(linkLocal, LINK_PREFIX)
+                            .addRoute(LINK_LOCAL_ROUTE, LINK_PREFIX)
+                            .setSession(SESSION_NAME)
+                            .setMtu(TUN_MTU)
+                        fallbackBuilder.setBlocking(true)
+                        attachStage = "VPN establish (route-only fallback after UID rule failure)"
+                        try {
+                            fallbackBuilder.establish()
+                        } catch (fallbackError: Exception) {
+                            fallbackError.addSuppressed(error)
+                            runCatching {
+                                listener.onDebugLog("wired route-only VPN also rejected: ${attachFailure(fallbackError)}; original per-app error: ${attachFailure(error)}")
+                            }
+                            throw fallbackError
+                        }
+                    } else {
+                        // Issue #127: 4.4-framework ROMs (real API 19, e.g. Allwinner T3,
+                        // whether or not they fake SDK_INT) add the UID fwmark rule in the
+                        // framework's own establish(), so a route-only re-establish would
+                        // hit the same leaked rule. Surface the reboot recovery instead
+                        // of retrying the doomed establish.
+                        throw withStaleUidRuleHint(error)
                     }
                 } else {
                     // Issue #79: some vendor ROMs (e.g. Freescale/HSAE NTDA3 on 4.4.3) wedge
@@ -463,6 +476,53 @@ class CarPlayVpnService : VpnService() {
                 error,
             )
         }
+        /**
+         * Issue #127: translate a rejected "interface fwmark uid add" on 4.4-framework
+         * ROMs (real API 19, e.g. Allwinner T3) into an actionable hint. The framework
+         * adds the UID rule inside its own establish(), and this ROM's netd rejects
+         * re-adding it ("Invalid argument") once a previous session's rule leaked past
+         * graceful teardown, so every in-process re-establish hits the same rejection.
+         * The app cannot clear netd state; only a head-unit reboot (or app process
+         * restart, which lets the framework tear the VPN down fully) recovers it.
+         */
+        internal fun withStaleUidRuleHint(error: Throwable): Throwable {
+            return IOException(
+                "VPN establish failed: the head unit's netd rejected the framework's UID " +
+                    "routing rule (\"Invalid argument\"); a previous session's rule was not " +
+                    "cleaned up and re-adding it always fails. The app cannot clear netd " +
+                    "state: reboot the head unit and retry (restarting the app may also " +
+                    "recover it). " +
+                    "Original error: ${error.message}",
+                error,
+            )
+        }
+
+        /**
+         * Returns the real API level, working around head units (e.g. Allwinner T3) that
+         * fake [Build.VERSION.SDK_INT] (report 27 while [Build.VERSION.RELEASE] says 4.4.x).
+         * Trust the release string when it contradicts the SDK int on the low end.
+         */
+        internal fun realSdkInt(): Int {
+            val reported = Build.VERSION.SDK_INT
+            val release = Build.VERSION.RELEASE ?: return reported
+            // Map 4.4.x release to API 19 regardless of what SDK_INT claims.
+            if (release.startsWith("4.4") && reported > Build.VERSION_CODES.KITKAT) {
+                return Build.VERSION_CODES.KITKAT
+            }
+            // Map 5.x release to API 21/22.
+            if (release.startsWith("5.0") && reported > Build.VERSION_CODES.LOLLIPOP) {
+                return Build.VERSION_CODES.LOLLIPOP
+            }
+            if (release.startsWith("5.1") && reported > Build.VERSION_CODES.LOLLIPOP_MR1) {
+                return Build.VERSION_CODES.LOLLIPOP_MR1
+            }
+            // Map 6.0 release to API 23.
+            if (release.startsWith("6.0") && reported > Build.VERSION_CODES.M) {
+                return Build.VERSION_CODES.M
+            }
+            return reported
+        }
+
         /** Returns the VPN consent intent, or null when consent is already granted. */
         fun prepare(context: Context): Intent? = VpnService.prepare(context)
     }
