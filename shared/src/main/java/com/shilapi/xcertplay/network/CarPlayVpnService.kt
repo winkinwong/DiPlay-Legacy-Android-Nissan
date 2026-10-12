@@ -110,11 +110,12 @@ class CarPlayVpnService : VpnService() {
                 .addRoute(LINK_LOCAL_ROUTE, LINK_PREFIX)
                 .setSession(SESSION_NAME)
                 .setMtu(TUN_MTU)
-            if (Build.VERSION.SDK_INT >= 21 && !perAppVpnUnsupported) {
+            if (realSdkInt() >= 21 && !perAppVpnUnsupported) {
                 // Per-app VPN scopes CarPlay traffic to this app on genuine API 21+ ROMs.
-                // Some T3 units fake SDK 27 on a real API 19 ROM whose netd rejects the uid
-                // fwmark rule ("Invalid argument"); once seen, later attaches skip the doomed
-                // per-app attempt and go straight to the route-only VPN below.
+                // Use the real API level, not the faked SDK_INT: on 4.4-framework ROMs
+                // (e.g. Allwinner T3 reporting 27) the per-app attempt makes the
+                // framework issue a UID fwmark rule that the real 4.4 netd rejects
+                // ("Invalid argument"). Skip it and go straight to route-only.
                 builder.setBlocking(true).addAllowedApplication(packageName)
             }
             // KitKat has no per-app VPN (and neither do ROMs whose netd rejects uid rules).
