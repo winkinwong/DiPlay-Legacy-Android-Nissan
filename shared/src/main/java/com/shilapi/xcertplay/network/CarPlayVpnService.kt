@@ -482,16 +482,29 @@ class CarPlayVpnService : VpnService() {
          * adds the UID rule inside its own establish(), and this ROM's netd rejects
          * re-adding it ("Invalid argument") once a previous session's rule leaked past
          * graceful teardown, so every in-process re-establish hits the same rejection.
+         * Issue #129: the same stale-state class surfaces as "Device or resource busy"
+         * on "interface fwmark rule add" when a conflicting rule is still present.
          * The app cannot clear netd state; only a head-unit reboot (or app process
          * restart, which lets the framework tear the VPN down fully) recovers it.
          */
         internal fun withStaleUidRuleHint(error: Throwable): Throwable {
+            // Quote what netd actually said instead of hardcoding one variant.
+            val detail = generateSequence(error) { it.cause }.take(8)
+                .mapNotNull { cause ->
+                    val message = cause.message.orEmpty()
+                    when {
+                        message.contains("Device or resource busy", ignoreCase = true) ->
+                            "Device or resource busy"
+                        message.contains("Invalid argument", ignoreCase = true) ->
+                            "Invalid argument"
+                        else -> null
+                    }
+                }.firstOrNull() ?: "rejected"
             return IOException(
-                "VPN establish failed: the head unit's netd rejected the framework's UID " +
-                    "routing rule (\"Invalid argument\"); a previous session's rule was not " +
-                    "cleaned up and re-adding it always fails. The app cannot clear netd " +
-                    "state: reboot the head unit and retry (restarting the app may also " +
-                    "recover it). " +
+                "VPN establish failed: the head unit's netd rejected the framework's fwmark " +
+                    "routing rule (\"$detail\"); a previous session's rule was not cleaned up " +
+                    "and re-adding it always fails. The app cannot clear netd state: reboot " +
+                    "the head unit and retry (restarting the app may also recover it). " +
                     "Original error: ${error.message}",
                 error,
             )
