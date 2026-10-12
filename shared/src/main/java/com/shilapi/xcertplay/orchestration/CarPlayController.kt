@@ -1170,10 +1170,21 @@ class CarPlayController(
             // Issue #79: without a Bluetooth adapter, wireless CarPlay is impossible —
             // iPhone needs Bluetooth for discovery/pairing. Fail fast instead of waiting
             // 60s for a Wi-Fi connection that will never come.
-            if (BluetoothAdapter.getDefaultAdapter() == null) {
+            val btAdapter = BluetoothAdapter.getDefaultAdapter()
+            if (btAdapter == null) {
                 throw IOException(
                     "No Bluetooth adapter on this head unit; wireless CarPlay requires Bluetooth " +
                         "for iPhone discovery. Use wired USB instead."
+                )
+            }
+            // Issue #117: adapter present but switched off — the iPhone can never discover
+            // the head unit, so fail fast with an actionable message instead of the 60s
+            // Wi-Fi wait ending in "Timed out waiting for iPhone to connect over Wi-Fi hotspot".
+            if (!btAdapter.isEnabled) {
+                throw IOException(
+                    "Bluetooth is turned off on this head unit; wireless CarPlay requires Bluetooth " +
+                        "for iPhone discovery. Turn on Bluetooth in the head unit system settings " +
+                        "and retry, or use wired USB instead."
                 )
             }
             closeWirelessStack(generation = generation)

@@ -5033,6 +5033,7 @@ class CarPlayHostActivity : ComponentActivity() {
         message.contains("socket", true) || message.contains("RFCOMM", true) ->
             getString(R.string.your_iphone_isn_t_available_unlock_it_and_check_bluetooth)
         message.contains("Bluetooth adapter is unavailable", true) -> getString(R.string.bluetooth_adapter_unavailable)
+        message.contains("Bluetooth is turned off", true) -> getString(R.string.enable_the_car_s_bluetooth_and_pair_your_iphone_first)
         message.contains("busy", true) || message.contains("EBUSY", true) -> getString(R.string.usb_iphone_busy_or_occupied)
         message.contains("permission was not granted", true) -> getString(R.string.usb_iphone_permission_not_granted)
         message.contains("unsupported", true) || message.contains("not supported", true) -> getString(R.string.this_head_unit_may_not_support_wireless_carplay_try_a_usb)
