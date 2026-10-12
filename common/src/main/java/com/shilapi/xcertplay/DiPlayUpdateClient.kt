@@ -210,14 +210,28 @@ internal object DiPlayUpdateClient {
 
     private val legacyTlsFactory by lazy {
         val context = appContext ?: throw IOException("Updater trust store not initialized")
-        val roots = java.security.cert.CertificateFactory.getInstance("X.509")
+        val factory = java.security.cert.CertificateFactory.getInstance("X.509")
         val store = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType()).apply { load(null) }
         context.resources.openRawResource(R.raw.update_ca_bundle).use { stream ->
-            val certificates = roots.generateCertificates(stream)
-            if (certificates.isEmpty()) throw IOException("Bundled update trust roots are empty")
-            certificates.forEachIndexed { index, certificate ->
-                store.setCertificateEntry("update-root-$index", certificate)
+            // Android 4.4's generateCertificates() returns empty (or fails) on multi-cert PEMs
+            // with '#' comment lines. Parse each PEM block individually and skip bad ones.
+            val pem = stream.readBytes().toString(Charsets.UTF_8)
+            val blocks = pem.split("-----BEGIN CERTIFICATE-----").drop(1)
+            var loaded = 0
+            blocks.forEachIndexed { index, block ->
+                val end = block.indexOf("-----END CERTIFICATE-----")
+                if (end < 0) return@forEachIndexed
+                val certPem = "-----BEGIN CERTIFICATE-----" + block.substring(0, end) +
+                    "-----END CERTIFICATE-----\n"
+                try {
+                    val cert = factory.generateCertificate(certPem.byteInputStream())
+                    store.setCertificateEntry("update-root-$index", cert)
+                    loaded++
+                } catch (_: Exception) {
+                    // Skip unparseable certificates on old Android; keep the rest.
+                }
             }
+            if (loaded == 0) throw IOException("Bundled update trust roots are empty")
         }
         val trust = javax.net.ssl.TrustManagerFactory.getInstance(
             javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm(),
