@@ -6,6 +6,7 @@ import android.hardware.usb.UsbInterface
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import com.shilapi.xcertplay.compat.realSdkInt
 
 /**
  * Old Android USB-host kernels sometimes leave a class driver attached even when
@@ -70,7 +71,7 @@ internal object LegacyUsbHostCompat {
         nativeSelect: (Int, Int) -> Int = { fd, target -> LegacyUsbHostNative.setConfiguration(fd, target) },
     ): ConfigurationResult {
         val target = configuration.id
-        val legacy = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+        val legacy = realSdkInt() <= Build.VERSION_CODES.P
         val before = activeConfiguration(connection)
         if (!legacy && before == target) {
             return ConfigurationResult(true, null, before)
@@ -80,7 +81,7 @@ internal object LegacyUsbHostCompat {
         // As in the Android-8 reference APK, always ask the host kernel to select it
         // before claiming interfaces. A matching phone value cannot mask a failed ioctl.
         val frameworkSelected = runCatching {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP &&
+            realSdkInt() >= Build.VERSION_CODES.LOLLIPOP &&
                 selectUsbConfiguration(connection, configuration)
         }.getOrDefault(false)
         SystemClock.sleep(CONFIG_SETTLE_MILLIS)
@@ -92,11 +93,11 @@ internal object LegacyUsbHostCompat {
         if (frameworkActive == target && (frameworkSelected || !legacy)) {
             return ConfigurationResult(true, null, frameworkActive)
         }
-        if (frameworkSelected && frameworkActive == null && Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+        if (frameworkSelected && frameworkActive == null && realSdkInt() > Build.VERSION_CODES.P) {
             return ConfigurationResult(true, null, null)
         }
 
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+        if (realSdkInt() > Build.VERSION_CODES.P) {
             return ConfigurationResult(false, null, activeConfiguration(connection))
         }
 
@@ -139,7 +140,7 @@ internal object LegacyUsbHostCompat {
 
     fun claim(connection: UsbDeviceConnection, usbInterface: UsbInterface): ClaimResult {
         if (connection.claimInterface(usbInterface, true)) return ClaimResult(true, null)
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return ClaimResult(false, null)
+        if (realSdkInt() > Build.VERSION_CODES.P) return ClaimResult(false, null)
 
         val fd = runCatching { connection.fileDescriptor }.getOrDefault(-1)
         if (fd < 0) {
@@ -158,8 +159,8 @@ internal object LegacyUsbHostCompat {
     }
 
     fun select(connection: UsbDeviceConnection, usbInterface: UsbInterface): SelectResult {
-        if (Build.VERSION.SDK_INT >= 21 && connection.setInterface(usbInterface)) return SelectResult(true, null)
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) return SelectResult(false, null)
+        if (realSdkInt() >= 21 && connection.setInterface(usbInterface)) return SelectResult(true, null)
+        if (realSdkInt() > Build.VERSION_CODES.P) return SelectResult(false, null)
 
         val fd = runCatching { connection.fileDescriptor }.getOrDefault(-1)
         if (fd < 0) {

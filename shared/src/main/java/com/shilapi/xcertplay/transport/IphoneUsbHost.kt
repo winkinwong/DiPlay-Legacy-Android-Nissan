@@ -692,30 +692,10 @@ class Iap2UsbSession internal constructor(
     }
 
     /**
-     * Returns the real API level, working around head units (e.g. Allwinner T3) that fake
-     * [Build.VERSION.SDK_INT] (report 27 while [Build.VERSION.RELEASE] says 4.4.x).
-     * Trust the release string when it contradicts the SDK int on the low end.
+     * Returns the real API level; delegates to the shared [com.shilapi.xcertplay.compat.realSdkInt].
+     * Kept for call-site compatibility.
      */
-    private fun realSdkInt(): Int {
-        val reported = Build.VERSION.SDK_INT
-        val release = Build.VERSION.RELEASE ?: return reported
-        // Map 4.4.x release to API 19 regardless of what SDK_INT claims.
-        if (release.startsWith("4.4") && reported > Build.VERSION_CODES.KITKAT) {
-            return Build.VERSION_CODES.KITKAT
-        }
-        // Map 5.x release to API 21/22.
-        if (release.startsWith("5.0") && reported > Build.VERSION_CODES.LOLLIPOP) {
-            return Build.VERSION_CODES.LOLLIPOP
-        }
-        if (release.startsWith("5.1") && reported > Build.VERSION_CODES.LOLLIPOP_MR1) {
-            return Build.VERSION_CODES.LOLLIPOP_MR1
-        }
-        // Map 6.0 release to API 23.
-        if (release.startsWith("6.0") && reported > Build.VERSION_CODES.M) {
-            return Build.VERSION_CODES.M
-        }
-        return reported
-    }
+    private fun realSdkInt(): Int = com.shilapi.xcertplay.compat.realSdkInt()
 
     private fun failSession(message: String, cause: Throwable? = null): IphoneUsbException.DeviceUnavailable {
         val error = IphoneUsbException.DeviceUnavailable(message, cause)

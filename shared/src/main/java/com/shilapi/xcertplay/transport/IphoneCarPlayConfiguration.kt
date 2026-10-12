@@ -8,6 +8,7 @@ import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.os.Build
 import android.util.Log
+import com.shilapi.xcertplay.compat.realSdkInt
 
 data class CarPlayUsbConfiguration(
     val id: Int,
@@ -36,7 +37,7 @@ object IphoneCarPlayConfiguration {
     private const val PREFERRED_USBMUX_IN = 0x85
 
     fun find(device: UsbDevice, connection: UsbDeviceConnection? = null): CarPlayUsbConfiguration? {
-        val configurations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        val configurations = if (realSdkInt() >= Build.VERSION_CODES.LOLLIPOP) {
             platformConfigurations(device)
         } else if (connection != null) {
             KitKatUsbDescriptors.read(connection)
@@ -103,7 +104,7 @@ object IphoneCarPlayConfiguration {
         }
 
     fun alternateSetting(usbInterface: UsbInterface): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) usbInterface.alternateSetting
+        if (realSdkInt() >= Build.VERSION_CODES.LOLLIPOP) usbInterface.alternateSetting
         else KitKatUsbDescriptors.alternate(usbInterface)
             ?: if (usbInterface.interfaceClass == 0x0a && usbInterface.endpointCount > 0) 1 else 0
 

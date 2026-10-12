@@ -8,12 +8,16 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbRequest
 import android.os.Build
 import androidx.annotation.RequiresApi
+import com.shilapi.xcertplay.compat.realSdkInt
 import java.nio.ByteBuffer
 
 internal fun queueUsbRequest(request: UsbRequest, buffer: ByteBuffer): Boolean {
     // Android 8's queue(ByteBuffer) throws above 16 KiB, unlike Android 9+.
-    buffer.limit(buffer.position() + usbTransferSize(Build.VERSION.SDK_INT, buffer.remaining()))
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) request.queue(buffer)
+    // Use the real API level: faked SDK ints (e.g. T3 reporting 27 on real 4.4)
+    // would select the API 26+ overload that doesn't exist on the real framework.
+    val sdk = realSdkInt()
+    buffer.limit(buffer.position() + usbTransferSize(sdk, buffer.remaining()))
+    return if (sdk >= Build.VERSION_CODES.O) request.queue(buffer)
     else {
         @Suppress("DEPRECATION")
         request.queue(buffer, buffer.remaining())
@@ -45,13 +49,13 @@ internal fun writeUsbChunks(
 }
 
 internal fun waitForUsbRequest(connection: UsbDeviceConnection, timeoutMillis: Long): UsbRequest? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) connection.requestWait(timeoutMillis.coerceAtLeast(1))
+    if (realSdkInt() >= Build.VERSION_CODES.O) connection.requestWait(timeoutMillis.coerceAtLeast(1))
     else connection.requestWait()
 
 internal fun selectUsbConfiguration(
     connection: UsbDeviceConnection,
     configuration: CarPlayUsbConfiguration,
-): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+): Boolean = if (realSdkInt() >= Build.VERSION_CODES.LOLLIPOP) {
     selectUsbConfiguration21(connection, configuration.platformConfiguration)
 } else {
     connection.controlTransfer(
@@ -66,7 +70,7 @@ internal fun selectUsbConfiguration(
 }
 
 internal fun selectUsbInterface(connection: UsbDeviceConnection, usbInterface: UsbInterface): Boolean =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) connection.setInterface(usbInterface)
+    if (realSdkInt() >= Build.VERSION_CODES.LOLLIPOP) connection.setInterface(usbInterface)
     else connection.controlTransfer(
         UsbConstants.USB_DIR_OUT or UsbConstants.USB_TYPE_STANDARD or 1,
         11,
