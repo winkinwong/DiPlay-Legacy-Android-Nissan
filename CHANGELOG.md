@@ -1,3 +1,12 @@
+# DiPlay 0.2.46 — 2026-10-13
+
+- Bring in the latest AirPlay wired listener interface-scoped binding and kernel LISTEN diagnosis.
+- Use genuine platform API levels for USB/VPN compatibility on vendor ROMs that report misleading SDK levels.
+- Improve Bluetooth diagnosis for HSAE external adapters and clarify iPhone wireless pairing instructions.
+- Retain the Android 4.4 TLS 1.2 update fix and verified signed release installation from v0.2.45.
+
+See [v0.2.46 release notes](docs/RELEASE-NOTES-0.2.46.md).
+
 # DiPlay 0.2.45 — 2026-10-12
 
 - Fix old Android head-unit update checks that negotiate only obsolete SSLv3 protocols; use a bundled TLS 1.2 HTTPS stack for Android 4.4/5.0 and a narrowly scoped fallback for affected newer vendor ROMs.
