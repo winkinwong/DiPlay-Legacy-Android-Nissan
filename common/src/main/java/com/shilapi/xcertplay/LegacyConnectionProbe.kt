@@ -41,7 +41,10 @@ internal object LegacyConnectionProbe {
         appendLine(runCatching {
             @Suppress("DEPRECATION")
             val bluetooth = BluetoothAdapter.getDefaultAdapter()
-            "Bluetooth adapter=${bluetooth != null} enabled=${bluetooth?.isEnabled}"
+            val hybrid = com.shilapi.xcertplay.bluetooth.CarPlayBluetoothManager.get(context)
+            "Bluetooth adapter=${bluetooth != null} enabled=${bluetooth?.isEnabled} " +
+                "hybridSupported=${hybrid.isSupported()} hybridEnabled=${hybrid.isEnabled()} " +
+                "hybridAdapter=${hybrid.getAdapterName()}"
         }.getOrElse { "Bluetooth probe failed=${it.javaClass.simpleName}" })
     }
 
