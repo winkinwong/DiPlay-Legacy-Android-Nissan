@@ -267,7 +267,11 @@ class IphoneUsbHost(
         if (!usbManager.hasPermission(device)) {
             throw IphoneUsbException.PermissionDenied("USB permission has not been granted")
         }
+        // Issue #112: openDevice() returns null when the UsbDevice object is stale
+        // (iPhone re-enumerated; Android issued a new UsbDevice instance). Refresh from
+        // the live device list and retry once before giving up.
         val connection = usbManager.openDevice(device)
+            ?: refreshDevice(device)?.let { usbManager.openDevice(it) }
             ?: throw IphoneUsbException.DeviceUnavailable("UsbManager could not open the iPhone")
         try {
             operation(connection)
@@ -289,7 +293,9 @@ class IphoneUsbHost(
         if (!usbManager.hasPermission(device)) {
             throw IphoneUsbException.PermissionDenied("USB permission has not been granted")
         }
+        // Issue #112: stale UsbDevice after re-enumeration; try the fresh instance.
         val connection = usbManager.openDevice(device)
+            ?: refreshDevice(device)?.let { usbManager.openDevice(it) }
             ?: throw IphoneUsbException.DeviceUnavailable("UsbManager could not open the iPhone")
         val sharedConnection = SharedUsbDeviceConnection.own(connection)
         var claimedInterface: UsbInterface? = null
@@ -367,6 +373,16 @@ class IphoneUsbHost(
             throw IphoneUsbException.DeviceUnavailable("USB device is not a configured iPhone identity")
         }
     }
+
+    /**
+     * Issue #112: find the current UsbDevice instance for the same VID/PID. After the iPhone
+     * re-enumerates, the UsbDevice object we hold is stale and openDevice() returns null;
+     * the live list has the fresh instance.
+     */
+    private fun refreshDevice(stale: UsbDevice): UsbDevice? =
+        usbManager.deviceList.values.firstOrNull {
+            it.vendorId == stale.vendorId && it.productId == stale.productId
+        }
 
     private fun permissionPendingIntent(): PendingIntent {
         val intent = Intent(permissionAction).setPackage(appContext.packageName)
