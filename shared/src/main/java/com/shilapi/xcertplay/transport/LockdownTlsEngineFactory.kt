@@ -53,6 +53,13 @@ object LockdownTlsEngineFactory {
             // Record why the bundled candidate was rejected: without it, the next #67-style
             // report cannot tell "Conscrypt broken" from "platform lacks TLS 1.2".
             val conscryptNotes = mutableListOf<String>()
+            // On some vendor ROMs (e.g. Allwinner T3 Android 4.4) the Conscrypt native library
+            // does not auto-load. Try explicit load first so we get a clear error reason.
+            runCatching {
+                System.loadLibrary("conscrypt_jni")
+            }.onFailure {
+                conscryptNotes += "explicit loadLibrary failed: ${it.javaClass.simpleName}"
+            }
             val bundled = runCatching {
                 SSLContext.getInstance("TLS", Conscrypt.newProvider()).apply {
                     init(keyManagers, arrayOf(UsbLockdownTrustManager), null)
