@@ -146,7 +146,12 @@ class CarPlayVpnService : VpnService() {
                         throw fallbackError
                     }
                 } else {
-                    throw error
+                    // Issue #79: some vendor ROMs (e.g. Freescale/HSAE NTDA3 on 4.4.3) wedge
+                    // their netd VPN state after a reconnect: every establish() then fails
+                    // inside the framework at "interface fwmark rule add tunX" with
+                    // "No such device". The app cannot repair framework netd state, so
+                    // translate the cryptic netd line into an actionable hint.
+                    throw withWedgedVpnHint(error)
                 }
             } ?: throw IOException("VpnService.establish returned null")
             tun = tunFd
@@ -434,6 +439,29 @@ class CarPlayVpnService : VpnService() {
                     message.contains("fwmark", ignoreCase = true) ||
                     message.contains("Failed to add uid", ignoreCase = true)
             }
+        }
+
+        /**
+         * Issue #79: translate the framework-internal netd failure
+         * "interface fwmark rule add tunX ... No such device" into an actionable hint.
+         * Retrying the identical establish() cannot recover wedged netd VPN state, so the
+         * original error is preserved and a reboot/reinstall recovery note is appended.
+         */
+        internal fun withWedgedVpnHint(error: Throwable): Exception {
+            val wedged = generateSequence(error) { it.cause }.take(8).any { cause ->
+                val message = cause.message.orEmpty()
+                message.contains("fwmark rule add", ignoreCase = true) &&
+                    message.contains("No such device", ignoreCase = true)
+            }
+            if (!wedged) return error
+            return IOException(
+                "VPN establish failed: the system netd rejected its own fwmark rule for the " +
+                    "TUN interface (\"No such device\"); the head unit's VPN state is wedged " +
+                    "and retrying cannot clear it. Reboot the head unit and retry; " +
+                    "reinstalling the app also clears it. " +
+                    "Original error: ${error.message}",
+                error,
+            )
         }
         /** Returns the VPN consent intent, or null when consent is already granted. */
         fun prepare(context: Context): Intent? = VpnService.prepare(context)
