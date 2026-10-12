@@ -14,6 +14,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.hardware.usb.UsbRequest
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import java.io.Closeable
 import java.io.IOException
@@ -377,12 +378,26 @@ class IphoneUsbHost(
     /**
      * Issue #112: find the current UsbDevice instance for the same VID/PID. After the iPhone
      * re-enumerates, the UsbDevice object we hold is stale and openDevice() returns null;
-     * the live list has the fresh instance.
+     * the live list has the fresh instance. The iPhone also physically disconnects for ~1s
+     * while it re-enumerates, so a single snapshot of the device list can miss it entirely:
+     * poll briefly for the fresh instance before giving up. Callers run on background
+     * executors, never the main thread.
      */
-    private fun refreshDevice(stale: UsbDevice): UsbDevice? =
-        usbManager.deviceList.values.firstOrNull {
-            it.vendorId == stale.vendorId && it.productId == stale.productId
+    private fun refreshDevice(stale: UsbDevice): UsbDevice? {
+        val deadline = SystemClock.elapsedRealtime() + REENUMERATION_REAPPEAR_TIMEOUT_MILLIS
+        while (true) {
+            usbManager.deviceList.values.firstOrNull {
+                it.vendorId == stale.vendorId && it.productId == stale.productId
+            }?.let { return it }
+            if (SystemClock.elapsedRealtime() >= deadline) return null
+            try {
+                Thread.sleep(REENUMERATION_POLL_INTERVAL_MILLIS)
+            } catch (ignored: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return null
+            }
         }
+    }
 
     private fun permissionPendingIntent(): PendingIntent {
         val intent = Intent(permissionAction).setPackage(appContext.packageName)
@@ -430,6 +445,13 @@ class IphoneUsbHost(
         private const val CARPLAY_CONFIGURATION_INDEX = 0x0004
         private const val VENDOR_RESPONSE_LENGTH = 1
         private const val CONTROL_TRANSFER_TIMEOUT_MILLIS = 1_000
+        /**
+         * Issue #112: the iPhone disconnects for ~1s while re-enumerating into the CarPlay
+         * configuration; wait up to 5s (polled every 250ms) for it to reappear in the live
+         * device list before reporting "could not open the iPhone".
+         */
+        private const val REENUMERATION_REAPPEAR_TIMEOUT_MILLIS = 5_000L
+        private const val REENUMERATION_POLL_INTERVAL_MILLIS = 250L
     }
 
 }
