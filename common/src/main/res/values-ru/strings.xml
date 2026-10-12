@@ -378,7 +378,7 @@
     <string name="vpn_consent_was_denied">Согласие на VPN отклонено</string>
     <string name="waiting_for_iphone_over_usb">Ожидание iPhone по USB</string>
     <string name="waiting_for_mfi_coprocessor">Ожидание сопроцессора MFi</string>
-    <string name="waiting_for_paired_iphone">Ожидание связанного iPhone</string>
+    <string name="waiting_for_paired_iphone">Ожидание iPhone — нажмите DiPlay в настройках iPhone > Основные > CarPlay</string>
     <string name="wi_fi_direct_is_still_busy_close_the_other_projection_app">Wi-Fi Direct всё ещё занят. Закройте другое приложение проекции и повторите.</string>
     <string name="wi_fi_p2p_5_ghz">Wi-Fi P2P (5 ГГц)</string>
     <string name="wi_fi_session">Сеанс Wi-Fi</string>
