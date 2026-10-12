@@ -22,6 +22,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import com.shilapi.xcertplay.airplay.AirPlayListenerIdentity
@@ -220,6 +221,7 @@ class CarPlayController(
     private var reenumerationAttempts = 0
     private var lastReportedStatus: CarPlayStatus? = null
     private var mfiResetLogged = false
+    private var lastNoIphoneDevicesLogNanos = 0L
 
     @Volatile private var closed = false
     @Volatile private var phase = Phase.IDLE
@@ -1855,6 +1857,7 @@ class CarPlayController(
         val device = iphoneHost.discover().firstOrNull()
         if (device == null) {
             onStatus(CarPlayStatus.WaitingForIphone)
+            logVisibleUsbDevicesThrottled()
             scheduleAvailabilityPoll(Phase.IPHONE, ::checkIphoneAvailability)
         } else {
             debugLog(
@@ -2064,6 +2067,24 @@ class CarPlayController(
             }
             else -> Unit
         }
+    }
+
+    /**
+     * Throttled diagnostic for the "iPhone not found" wait loop: records what the OS actually
+     * sees on the USB bus, so a future report instantly distinguishes "the iPhone never
+     * enumerated" (cable / port / iPhone USB-accessories locked) from "it enumerated but was
+     * filtered out". VID/PID only; no serials or identities.
+     */
+    private fun logVisibleUsbDevicesThrottled() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastNoIphoneDevicesLogNanos < NO_IPHONE_DEVICES_LOG_INTERVAL_MILLIS) return
+        lastNoIphoneDevicesLogNanos = now
+        val summary = runCatching {
+            usbManager?.deviceList?.values?.joinToString(" | ") {
+                "vid=0x${it.vendorId.toString(16)} pid=0x${it.productId.toString(16)}"
+            }.orEmpty()
+        }.getOrDefault("<unavailable>")
+        debugLog("wired waiting for iPhone; visible USB devices: [$summary]")
     }
 
     private fun scheduleAvailabilityPoll(phase: Phase, check: () -> Unit) {
@@ -3041,6 +3062,7 @@ class CarPlayController(
         private const val PERMISSION_POLL_INTERVAL_MILLIS = 500L
         private const val PERMISSION_POLL_TIMEOUT_MILLIS = 120_000L
         private const val DEVICE_AVAILABILITY_POLL_INTERVAL_MILLIS = 2_000L
+        private const val NO_IPHONE_DEVICES_LOG_INTERVAL_MILLIS = 10_000L
         private const val WIRELESS_HANDOFF_TIMEOUT_MILLIS = 45_000L
         private const val RFCOMM_CONNECT_TIMEOUT_MILLIS = 15_000L
         private const val MAXIMUM_REENUMERATION_ATTEMPTS = 2
