@@ -531,7 +531,9 @@ class Iap2UsbSession internal constructor(
             val completed = try {
                 sharedConnection.await(request, timeoutMillis)
             } catch (_: TimeoutException) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // T3 and similar head units fake SDK_INT (report 27 while really 4.4).
+                // cancel() is unreliable on the real API 19, so use the real level here.
+                if (realSdkInt() >= Build.VERSION_CODES.O) {
                     // Upstream #625: a read that completes between the timeout and the cancel
                     // can no longer be cancelled — drain it and keep its bytes so the session
                     // survives instead of dying every few minutes.
@@ -619,6 +621,32 @@ class Iap2UsbSession internal constructor(
             directReadBuffer.flip()
             directReadBuffer.get(it)
         }
+    }
+
+    /**
+     * Returns the real API level, working around head units (e.g. Allwinner T3) that fake
+     * [Build.VERSION.SDK_INT] (report 27 while [Build.VERSION.RELEASE] says 4.4.x).
+     * Trust the release string when it contradicts the SDK int on the low end.
+     */
+    private fun realSdkInt(): Int {
+        val reported = Build.VERSION.SDK_INT
+        val release = Build.VERSION.RELEASE ?: return reported
+        // Map 4.4.x release to API 19 regardless of what SDK_INT claims.
+        if (release.startsWith("4.4") && reported > Build.VERSION_CODES.KITKAT) {
+            return Build.VERSION_CODES.KITKAT
+        }
+        // Map 5.x release to API 21/22.
+        if (release.startsWith("5.0") && reported > Build.VERSION_CODES.LOLLIPOP) {
+            return Build.VERSION_CODES.LOLLIPOP
+        }
+        if (release.startsWith("5.1") && reported > Build.VERSION_CODES.LOLLIPOP_MR1) {
+            return Build.VERSION_CODES.LOLLIPOP_MR1
+        }
+        // Map 6.0 release to API 23.
+        if (release.startsWith("6.0") && reported > Build.VERSION_CODES.M) {
+            return Build.VERSION_CODES.M
+        }
+        return reported
     }
 
     private fun failSession(message: String, cause: Throwable? = null): IphoneUsbException.DeviceUnavailable {
