@@ -95,6 +95,21 @@ object LockdownTlsEngineFactory {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     sslParameters = sslParameters.apply { endpointIdentificationAlgorithm = null }
                 }
+                // Verify the actual returned engine, not just a test instance: on some vendor
+                // ROMs the supported protocols differ between engine instances from the same
+                // context. If this fails, TlsDuplexChannel would hit the same wall.
+                val actual = supportedProtocols.toSet()
+                if (!actual.contains("TLSv1.2") && !actual.contains("TLSv1.3")) {
+                    throw GeneralSecurityException(
+                        "Selected TLS engine reports no TLSv1.2/1.3 " +
+                            "(supported=${actual.joinToString(",").ifEmpty { "none" }})" +
+                            if (conscryptNotes.isNotEmpty()) {
+                                "; bundled Conscrypt rejected: " + conscryptNotes.joinToString("; ")
+                            } else {
+                                ""
+                            }
+                    )
+                }
             }
         } finally {
             password.fill('\u0000')
