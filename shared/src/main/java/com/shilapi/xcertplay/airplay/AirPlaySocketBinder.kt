@@ -119,6 +119,14 @@ internal object AirPlaySocketBinder {
     internal fun wildcardCandidates(reference: InetAddress?): List<InetAddress> {
         if (reference is Inet4Address) return listOf(wildcard(reference))
         val candidates = mutableListOf<InetAddress>()
+        if (reference is Inet6Address && reference.isLinkLocalAddress && reference.scopeId == 0) {
+            // Strict vendor kernels (e.g. Android 4.4 on Hangsheng NTDA3 / Allwinner T3) reject
+            // the bare "::" wildcard when the link only carries link-local addresses:
+            // "Can't bind to a link-local address without a scope id" (issue #124, AirPlay
+            // timing bind during SETUP). Prefer the scoped wildcard on the same link; it keeps
+            // wildcard semantics while giving the kernel the scope id it demands.
+            scopedWildcard(reference)?.let { candidates.add(it) }
+        }
         // Raw any-address bytes bypass the platform literal parser and any resolver detour.
         runCatching { candidates.add(InetAddress.getByAddress(ByteArray(16))) }
         if (reference is Inet6Address) candidates.add(reference)
