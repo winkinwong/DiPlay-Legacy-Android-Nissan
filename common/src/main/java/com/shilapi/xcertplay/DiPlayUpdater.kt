@@ -79,10 +79,8 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
 
     private fun showRelease(release: DiPlayUpdateClient.Release) {
         val notes = release.notes.ifBlank { activity.getString(R.string.update_no_notes) }
-        DiPlayUpdateDialogs.confirm(
-            activity,
-            activity.getString(R.string.update_available, release.tag),
-            notes + "\n\n" + activity.getString(R.string.update_parked_notice),
+        DiPlayUpdateDialogs.available(
+            activity, release.tag, notes, activity.getString(R.string.update_parked_notice),
             activity.getString(R.string.update_download),
             activity.getString(android.R.string.cancel),
         ) { download(release) }
@@ -100,19 +98,30 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
         downloadDialog = DiPlayUpdateDialogs.progress(activity) { cancelled = true }
         worker.execute {
             try {
-                var lastPercent = -1
-                val file = DiPlayUpdateClient.download(
+                var lastUiTime = 0L
+                var lastSampleTime = android.os.SystemClock.elapsedRealtime()
+                var lastSampleBytes = 0L
+                var downloadSpeed = 0L
+                val file = DiPlayUpdateClient.downloadWithDetails(
                     release, File(activity.cacheDir, "diplay-updates"),
-                ) { percent ->
+                ) { percent, bytes ->
                     if (cancelled || closed) throw IOException("Download cancelled")
-                    if (percent != lastPercent) {
-                        lastPercent = percent
-                        onUi { downloadDialog?.update(percent) }
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (now - lastUiTime >= 180 || percent == 100) {
+                        val duration = now - lastSampleTime
+                        if (duration > 0) {
+                            downloadSpeed = (bytes - lastSampleBytes).coerceAtLeast(0L) * 1000L / duration
+                        }
+                        lastSampleBytes = bytes
+                        lastSampleTime = now
+                        lastUiTime = now
+                        onUi { downloadDialog?.update(percent, bytes, release.declaredSize, downloadSpeed) }
                     }
                 }
                 if (cancelled || closed) return@execute
                 onUi { downloadDialog?.verifying(activity) }
                 verifyPackage(file, release)
+                onUi { downloadDialog?.preparing(activity) }
                 // Legacy vendor installers may be unable to read FileProvider content://
                 // URIs. Keep a second verified copy in Downloads for file:// or manual use.
                 val sharedCopy = try {
@@ -170,10 +179,8 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
                 append(activity.getString(R.string.update_manual_saved, copiedToDownloads.absolutePath))
             }
         }
-        DiPlayUpdateDialogs.confirm(
-            activity,
-            activity.getString(R.string.update_install_title, version),
-            message,
+        DiPlayUpdateDialogs.installReady(
+            activity, version, message,
             activity.getString(R.string.update_install),
             activity.getString(android.R.string.cancel),
         ) { requestInstall(file) }
@@ -246,10 +253,8 @@ internal class DiPlayUpdater(private val activity: DiPlayActivity) {
         val file = awaitingInstallPermission ?: return
         if (Build.VERSION.SDK_INT >= 26 && activity.packageManager.canRequestPackageInstalls()) {
             awaitingInstallPermission = null
-            DiPlayUpdateDialogs.confirm(
-                activity,
-                activity.getString(R.string.update_install_title, ""),
-                activity.getString(R.string.update_install_notice),
+            DiPlayUpdateDialogs.installReady(
+                activity, "", activity.getString(R.string.update_install_notice),
                 activity.getString(R.string.update_install),
                 activity.getString(android.R.string.cancel),
             ) { requestInstall(file) }

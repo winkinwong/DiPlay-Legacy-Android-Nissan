@@ -17,6 +17,8 @@ captures/
 
 # Local agent working notes
 /agent_docs/
+/.review-issues/
+/dist/
 
 # OS files
 .DS_Store

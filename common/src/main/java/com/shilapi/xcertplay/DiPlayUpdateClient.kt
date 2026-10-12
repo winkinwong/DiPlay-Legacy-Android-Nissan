@@ -138,7 +138,11 @@ internal object DiPlayUpdateClient {
         return hash
     }
 
-    fun download(release: Release, directory: File, progress: (Int) -> Unit): File {
+    fun download(release: Release, directory: File, progress: (Int) -> Unit): File =
+        downloadWithDetails(release, directory) { percent, _ -> progress(percent) }
+
+    fun downloadWithDetails(release: Release, directory: File,
+                            progress: (Int, Long) -> Unit): File {
         val expected = checksum(release)
         if (!directory.exists() && !directory.mkdirs()) throw IOException("Cannot create update cache")
         val finished = File(directory, release.apkName)
@@ -162,7 +166,7 @@ internal object DiPlayUpdateClient {
                             }
                             messageDigest.update(buffer, 0, read)
                             output.write(buffer, 0, read)
-                            progress((count * 100L / release.declaredSize).toInt().coerceIn(0, 100))
+                            progress((count * 100L / release.declaredSize).toInt().coerceIn(0, 100), count)
                         }
                     }
                 }

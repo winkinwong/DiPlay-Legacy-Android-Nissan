@@ -1,3 +1,12 @@
+# DiPlay 0.2.44 — 2026-10-12
+
+- Rebuild software-update dialogs in the navy/cyan car-display style: release notes, version banner, progress stages, and post-download installation confirmation.
+- Show live downloaded bytes and transfer speed; allow downloads to continue in the background without cancelling their worker.
+- Keep SHA-256 and signing-certificate checks plus explicit Android installation consent; improve Chinese/English update copy and Android 4.4-compatible drawing.
+- Add UI regression tests for the update prompt, download-stage transitions, background button, and installation confirmation.
+
+See [v0.2.44 release notes](docs/RELEASE-NOTES-0.2.44.md) for details and device-validation limits.
+
 # DiPlay 0.2.14 — 2026-10-07
 
 - Group Settings by driver goal with search, adaptive layouts, quick controls and reconnect notices (#369).

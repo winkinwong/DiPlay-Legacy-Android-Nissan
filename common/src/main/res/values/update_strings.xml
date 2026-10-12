@@ -25,4 +25,16 @@
     <string name="update_manual_saved">A verified copy was also saved for manual installation:\n%1$s</string>
     <string name="update_manual_install_help">This head unit did not accept the system APK installer intent. The downloaded and verified APK is saved at:\n\n%1$s\n\nWhile parked, open the file manager and select this APK from Downloads. If the device has no installer app, use a PC with ADB or the manufacturer\'s installer.</string>
     <string name="update_manual_install_no_copy">The head unit did not accept the system APK installer intent, and public Downloads storage was unavailable. Download the APK on a computer from the official DiPlay GitHub Release and install it using ADB or your head unit\'s installer while parked.</string>
+    <string name="update_notes_heading">What\'s new</string>
+    <string name="update_available_heading">Update available</string>
+    <string name="update_available_subtitle">%1$s available</string>
+    <string name="update_available_description">New features and fixes are ready to download.</string>
+    <string name="update_ready_heading">Update package is ready</string>
+    <string name="update_ready_subtitle">%1$s · Download and verification complete</string>
+    <string name="update_dialog_subtitle">DiPlay software update</string>
+    <string name="update_progress_step_download">Downloading update package</string>
+    <string name="update_progress_step_verify">Verify SHA-256 and signing certificate</string>
+    <string name="update_progress_step_prepare">Prepare installation package</string>
+    <string name="update_preparing">Preparing installation package…</string>
+    <string name="update_continue_background">Continue in background</string>
 </resources>

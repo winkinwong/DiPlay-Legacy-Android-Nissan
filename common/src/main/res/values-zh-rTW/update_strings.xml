@@ -25,4 +25,16 @@
     <string name="update_manual_saved">已額外儲存供手動安裝的驗證副本：\n%1$s</string>
     <string name="update_manual_install_help">車機無法透過系統安裝入口開啟 APK。已驗證的安裝包儲存於：\n\n%1$s\n\n請停車後使用車機檔案管理員前往下載目錄，點擊 APK 手動安裝。若車機沒有安裝程式，可使用電腦的 ADB 或車機廠商提供的安裝工具。</string>
     <string name="update_manual_install_no_copy">車機無法開啟系統 APK 安裝程式，且公共下載目錄無法使用。請在電腦上從 DiPlay 官方 GitHub Release 下載 APK，再使用 ADB 或車機廠商的安裝工具安裝。</string>
+    <string name="update_notes_heading">更新內容</string>
+    <string name="update_available_heading">發現新版本</string>
+    <string name="update_available_subtitle">%1$s 可用</string>
+    <string name="update_available_description">包含功能優化與問題修復，建議立即更新。</string>
+    <string name="update_ready_heading">更新套件已準備完成</string>
+    <string name="update_ready_subtitle">%1$s · 下載與驗證已完成</string>
+    <string name="update_dialog_subtitle">DiPlay 軟體更新</string>
+    <string name="update_progress_step_download">正在下載更新套件</string>
+    <string name="update_progress_step_verify">驗證簽章與 SHA-256 完整性</string>
+    <string name="update_progress_step_prepare">準備安裝套件</string>
+    <string name="update_preparing">正在準備安裝套件…</string>
+    <string name="update_continue_background">背景繼續</string>
 </resources>
