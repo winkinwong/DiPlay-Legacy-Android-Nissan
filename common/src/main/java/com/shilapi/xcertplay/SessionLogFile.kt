@@ -15,15 +15,22 @@ internal class SessionLogFile(val file: File) : Closeable {
             append(header)
         }
     }
+    /**
+     * Multi-line input (a crash stack trace, for instance) is redacted one line at a time. The redactor
+     * drops any line that still carries a newline, so a caller handing over a whole trace used to lose
+     * every line of it, which is how issue #134 exported a report with no FATAL after the app died.
+     */
     fun append(line: String) = synchronized(lock) {
         if (closed) return@synchronized
-        val safe = DiagnosticRedactor.redact(line) ?: return@synchronized
-        runCatching {
-            if (file.length() > MAX_BYTES) {
-                rotate()
-                file.writeText("")
+        for (part in line.split('\n', '\r')) {
+            val safe = DiagnosticRedactor.redact(part) ?: continue
+            runCatching {
+                if (file.length() > MAX_BYTES) {
+                    rotate()
+                    file.writeText("")
+                }
+                file.appendText(safe + "\n")
             }
-            file.appendText(safe + "\n")
         }
         Unit
     }

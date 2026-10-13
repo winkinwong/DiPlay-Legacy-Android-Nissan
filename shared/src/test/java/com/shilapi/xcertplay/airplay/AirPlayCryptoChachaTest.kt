@@ -4,15 +4,19 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.bouncycastle.crypto.InvalidCipherTextException
+import org.conscrypt.Conscrypt
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 import kotlin.random.Random
 
 class AirPlayCryptoChachaTest {
@@ -133,6 +137,81 @@ class AirPlayCryptoChachaTest {
             }
             workers.forEach { it.get(10, TimeUnit.SECONDS) }
         } finally { pool.shutdownNow() }
+    }
+
+    /**
+     * Issue #134 on the Nissan NTDA3 head unit (Android 4.4): no installed provider serves
+     * ChaCha20-Poly1305, so every video frame fell back to BouncyCastle's Java implementation at
+     * 30-90 ms per frame. The bundled Conscrypt provider ships its native BoringSSL AEAD in the same APK.
+     */
+    @Test fun chachaCipherFallsBackToBundledConscryptWhenThePlatformHasNone() {
+        val cipher = AirPlayCrypto.openChachaCipher(platformLookup = { null })
+        assertNotNull("no ChaCha20/Poly1305/NoPadding once the platform has none", cipher)
+        assertEquals("Conscrypt", cipher!!.provider.name)
+    }
+
+    @Test fun bundledConscryptCipherOpensAFrameSealedByBouncyCastle() {
+        val cipher = AirPlayCrypto.openChachaCipher(platformLookup = { null })!!
+        val key = bytes(32)
+        val nonce = AirPlayCrypto.nonce64(4)
+        val aad = bytes(12)
+        val plain = bytes(33_000) // The size of one NTDA3 video frame.
+        val sealed = AirPlayCrypto.chachaSealBouncyCastle(key, nonce, plain, aad)
+        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
+        cipher.updateAAD(aad)
+        assertArrayEquals(plain, cipher.doFinal(sealed))
+    }
+
+    @Test fun aPlatformImplementationIsPreferredWhenItExists() {
+        // Whichever name the test JVM's own provider serves (SunJCE uses "ChaCha20-Poly1305").
+        val platform = listOf("ChaCha20/Poly1305/NoPadding", "ChaCha20-Poly1305")
+            .firstNotNullOfOrNull { runCatching { Cipher.getInstance(it) }.getOrNull() }
+        assertNotNull("the test JVM serves no ChaCha20-Poly1305 of its own", platform)
+        assertSame(platform, AirPlayCrypto.openChachaCipher(platformLookup = { platform }))
+    }
+
+    /**
+     * The exported diagnostic report said nothing about which ChaCha20-Poly1305 implementation the
+     * device resolved, so issue #134 could not be settled from the report alone.
+     */
+    @Test fun diagnosticNamesTheBundledConscryptImplementation() {
+        assertEquals(
+            "ChaCha20-Poly1305 via bundled Conscrypt (native)",
+            AirPlayCrypto.describeChachaCipher(platformLookup = { null }),
+        )
+    }
+
+    @Test fun diagnosticNamesTheBouncyCastleFallbackWhenNothingServesChaCha() {
+        assertEquals(
+            "ChaCha20-Poly1305 unavailable; BouncyCastle Java fallback",
+            AirPlayCrypto.describeChachaCipher(platformLookup = { null }, bundled = null),
+        )
+    }
+
+    @Test fun diagnosticNamesThePlatformImplementationOtherwise() {
+        val platform = listOf("ChaCha20/Poly1305/NoPadding", "ChaCha20-Poly1305")
+            .firstNotNullOfOrNull { runCatching { Cipher.getInstance(it) }.getOrNull() }!!
+        assertEquals(
+            "ChaCha20-Poly1305 via ${platform.provider.name}",
+            AirPlayCrypto.describeChachaCipher(platformLookup = { platform }),
+        )
+    }
+
+    /**
+     * A platform provider can itself be Conscrypt (Robolectric installs one, and Android 12+ ships one),
+     * so the label has to follow which lookup served the cipher, not the provider's name. This surfaced
+     * as a test that passed alone and failed in the full suite, where a Conscrypt provider is installed.
+     */
+    @Test fun diagnosticTellsBundledConscryptApartFromAnEquallyNamedPlatformOne() {
+        val platformConscrypt = Conscrypt.newProvider()
+        val cipher = Cipher.getInstance("ChaCha20/Poly1305/NoPadding", platformConscrypt)
+        assertEquals(
+            "ChaCha20-Poly1305 via Conscrypt",
+            AirPlayCrypto.describeChachaCipher(
+                platformLookup = { cipher },
+                bundled = Conscrypt.newProvider(),
+            ),
+        )
     }
 
     @Suppress("UNCHECKED_CAST")

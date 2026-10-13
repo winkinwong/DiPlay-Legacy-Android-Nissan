@@ -13,8 +13,10 @@ import org.bouncycastle.crypto.params.KeyParameter
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
+import org.conscrypt.Conscrypt
 import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
+import java.security.Provider
 import java.security.SecureRandom
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
@@ -44,9 +46,48 @@ object AirPlayCrypto {
         var implementation: String = cipher.provider.name
     }
 
+    /** Bundled Conscrypt, whose native ChaCha20-Poly1305 covers releases that install none (API 19). */
+    private val bundledConscrypt: Provider? by lazy {
+        runCatching { Conscrypt.newProvider() }.getOrNull()
+    }
+
+    /**
+     * The ChaCha20-Poly1305 [Cipher] for this thread: the platform's own implementation first, then the
+     * bundled Conscrypt provider. Android 4.4 installs no ChaCha20-Poly1305 at all, and without the
+     * second lookup every video frame went through BouncyCastle's Java implementation (30-90 ms a frame
+     * on an NTDA3 head unit) although the APK already carries Conscrypt's native BoringSSL AEAD.
+     */
+    internal fun openChachaCipher(
+        names: List<String> = PLATFORM_CHACHA_NAMES,
+        platformLookup: (String) -> Cipher? = { name -> runCatching { Cipher.getInstance(name) }.getOrNull() },
+        bundled: Provider? = bundledConscrypt,
+    ): Cipher? = names.firstNotNullOfOrNull { name ->
+        platformLookup(name)
+            ?: bundled?.let { provider -> runCatching { Cipher.getInstance(name, provider) }.getOrNull() }
+    }
+
     private val platformState = ThreadLocal.withInitial<PlatformChacha?> {
-        PLATFORM_CHACHA_NAMES.firstNotNullOfOrNull { runCatching { Cipher.getInstance(it) }.getOrNull() }
-            ?.let(::PlatformChacha)
+        openChachaCipher()?.let(::PlatformChacha)
+    }
+
+    /** Which ChaCha20-Poly1305 implementation this device resolves, for the exported diagnostics. */
+    fun frameCipherDiagnostic(): String = describeChachaCipher()
+
+    /**
+     * Names the resolved implementation for the diagnostic report. "Bundled" follows the provider
+     * instance that served the cipher, not its name: a platform provider may itself be called Conscrypt
+     * (Robolectric installs one, Android 12+ ships one) without being the copy inside this APK.
+     */
+    internal fun describeChachaCipher(
+        platformLookup: (String) -> Cipher? = { name -> runCatching { Cipher.getInstance(name) }.getOrNull() },
+        bundled: Provider? = bundledConscrypt,
+    ): String = when (val cipher = openChachaCipher(platformLookup = platformLookup, bundled = bundled)) {
+        null -> "ChaCha20-Poly1305 unavailable; BouncyCastle Java fallback"
+        else -> if (bundled != null && cipher.provider === bundled) {
+            "ChaCha20-Poly1305 via bundled Conscrypt (native)"
+        } else {
+            "ChaCha20-Poly1305 via ${cipher.provider.name}"
+        }
     }
 
     /** Implementation used by this thread's last successful operation, for diagnostics. */

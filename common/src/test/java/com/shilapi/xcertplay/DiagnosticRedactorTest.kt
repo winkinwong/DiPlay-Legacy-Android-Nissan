@@ -125,6 +125,44 @@ class DiagnosticRedactorTest {
         assertFalse(DiagnosticRedactor.redact(lines.last())!!.contains("192.168.49.1"))
     }
 
+    /**
+     * A crash handler hands the log one multi-line string. Every stack line carries a newline, and the
+     * redactor drops any single line that does, so the whole crash record used to disappear: issue #134
+     * came back with a report whose FATAL count was zero even though the app had just died in Settings.
+     */
+    @Test fun multiLineCrashTraceIsWrittenLineByLineInsteadOfVanishing() {
+        val folder = Files.createTempDirectory("diplay-crash-trace").toFile()
+        try {
+            val trace = listOf(
+                "FATAL thread=main java.lang.IllegalStateException: boom",
+                "java.lang.IllegalStateException: boom",
+                "\tat com.shilapi.xcertplay.DiPlayActivity.onResume(DiPlayActivity.kt:42)",
+                "\tat android.app.Activity.performResume(Activity.java:8000)",
+            ).joinToString("\n")
+            SessionLogFile(folder.resolve("diplay.log")).use {
+                it.reset("started")
+                it.append(trace)
+            }
+            val report = folder.resolve("diplay.log").readText()
+            assertTrue("The FATAL header must survive", report.contains("FATAL thread=main"))
+            assertTrue("Stack frames must survive", report.contains("at com.shilapi.xcertplay.DiPlayActivity.onResume"))
+        } finally { folder.deleteRecursively() }
+    }
+
+    @Test fun aMultiLineAppendStillDropsEveryLineThatCarriesCredentials() {
+        val folder = Files.createTempDirectory("diplay-crash-secret").toFile()
+        try {
+            SessionLogFile(folder.resolve("diplay.log")).use {
+                it.reset("started")
+                it.append("FATAL thread=main boom\n\tat com.shilapi.xcertplay.CarPlayHostActivity.stop(CarPlayHostActivity.kt:1)\npassword=secret")
+            }
+            val report = folder.resolve("diplay.log").readText()
+            assertTrue(report.contains("FATAL thread=main boom"))
+            assertTrue(report.contains("at com.shilapi.xcertplay.CarPlayHostActivity.stop"))
+            assertFalse(report.contains("secret"))
+        } finally { folder.deleteRecursively() }
+    }
+
     @Test fun startupAndAirPlayMilestonesSurviveExportWithoutWeakeningPayloadFilters() {
         val lines = listOf(
             "wireless startup elapsedMs=10000 authenticated=true wifiConfigs=2 startRequests=1 tcpAccepted=0 sessionActive=false waitingFor=WiFi_discovery_or_AirPlay_TCP",

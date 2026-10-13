@@ -82,6 +82,7 @@ class ScreenStream(
                 val body = readFully(input, bodySize) ?: break
                 val arrivalNanos = System.nanoTime()
                 stats.received(HEADER_LEN + bodySize)
+                AirPlayMediaActivity.onPayload()
                 onMessage(header, body, stats, arrivalNanos)
                 stats.processed()
             }

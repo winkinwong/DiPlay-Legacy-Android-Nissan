@@ -103,6 +103,7 @@ class AudioStream(
                     } else null,
                     timestamp = if (packet.length >= RTP_HEADER_LEN) readU32Be(buffer, 4) else null,
                 )
+                AirPlayMediaActivity.onPayload()
                 val wire = packet.data.copyOf(packet.length)
                 val packetNumber = receivedPackets.incrementAndGet()
                 if (wire.size < RTP_HEADER_LEN + TAIL_LEN) {

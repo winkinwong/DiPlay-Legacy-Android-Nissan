@@ -53,6 +53,14 @@ class SmoothVideoHostLifecycleTest {
     private val surfaces = mutableListOf<Pair<SurfaceTexture, Surface>>()
     private val blockedCodecs = mutableListOf<BlockingCodec>()
 
+    /**
+     * Waiting for the decoder to reach queueInputBuffer is a precondition, not the behavior under test.
+     * The `@Config(sdk = [28, 30])` runs pay a first-use cost for the instrumented video pipeline, and in
+     * full-suite runs that first frame has taken over the previous five-second deadline, which made both
+     * timed-out tests fail intermittently (reproduced on the unmodified tree as well).
+     */
+    private val codecBlockedTimeoutSeconds = 30L
+
     @Before fun setUp() {
         CarPlayBackgroundSession.clear()
         activity = Robolectric.buildActivity(CarPlayHostActivity::class.java).get()
@@ -238,7 +246,10 @@ class SmoothVideoHostLifecycleTest {
             0, sps.size.toByte()) + sps + byteArrayOf(1, 0, pps.size.toByte()) + pps
         closing.onVideoConfig(110, config)
         closing.onVideoFrame(110, byteArrayOf(0, 0, 0, 1, 0x65, 0x88.toByte(), 0x84.toByte(), 0x21))
-        assertTrue("The decoder is blocked inside queueInputBuffer", codec.entered.await(5, TimeUnit.SECONDS))
+        assertTrue(
+            "The decoder did not reach queueInputBuffer within ${codecBlockedTimeoutSeconds}s",
+            codec.entered.await(codecBlockedTimeoutSeconds, TimeUnit.SECONDS),
+        )
         val controller = mock(CarPlayController::class.java)
         setField("controller", controller)
         setField("sink", closing)

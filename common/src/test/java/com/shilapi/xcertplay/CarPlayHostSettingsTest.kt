@@ -483,6 +483,45 @@ class CarPlayHostSettingsTest {
         reporter(status)
     }
 
+    /**
+     * Issue #134: DiPlay died after the reporter opened and closed the settings overlay several times.
+     * Every open rebuilds the menu, so a rebuild that forgot to detach the previous tree, or that added a
+     * second copy, would grow the view hierarchy on a head unit with very little memory.
+     */
+    @Test fun repeatedOpenAndCloseKeepsExactlyOneMenuAttached() {
+        attachController()
+        val root = menu().parent as ViewGroup
+        val childrenBefore = root.childCount
+        repeat(6) { round ->
+            invoke("openSettingsMenu")
+            val open = menu()
+            assertSame("round $round must keep the live menu attached", root, open.parent)
+            assertEquals("round $round must not add a second copy", childrenBefore, root.childCount)
+            invoke("cancelSettingsEdits")
+            assertSame("round $round must keep the menu for the next open", root, menu().parent)
+            assertEquals("round $round must not leak the rebuilt menu", childrenBefore, root.childCount)
+        }
+    }
+
+    /**
+     * The rebuild path casts the previous menu's parent to a ViewGroup. If that menu is ever detached
+     * first, the cast throws inside a gesture handler and the process dies, which is what a report with
+     * no stack cannot rule out. Re-attaching instead keeps the overlay reachable.
+     */
+    @Test fun openingSettingsRecoversWhenThePreviousMenuLostItsParent() {
+        attachController()
+        val detached = menu()
+        val root = detached.parent as ViewGroup
+        root.removeView(detached)
+
+        invoke("openSettingsMenu")
+
+        assertTrue("Settings must still open", field("menuOpen") as Boolean)
+        val open = menu()
+        assertSame("The rebuilt menu must be attached", root, open.parent)
+        assertEquals(View.VISIBLE, open.visibility)
+    }
+
     private fun menu() = field("settingsMenu") as View
     private fun resolutionSlider() = views(menu()).filterIsInstance<SeekBar>()
         .first { it.max == CarPlayDisplayScale.MAX_PERCENT - CarPlayDisplayScale.MIN_PERCENT }

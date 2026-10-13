@@ -38,6 +38,13 @@ class Iap2WiredControlClient(
          * instead of idling until the USB stack wedges. Defaults to disabled.
          */
         airPlayTcpArrived: () -> Boolean = { true },
+        /**
+         * Issue #134: whether AirPlay media is still arriving. The peer-silence reset may only fire
+         * while iAP2 is quiet **and** this reports no recent media, otherwise a working session is torn
+         * down (the NTDA3 stops sending iAP2 frames for minutes while video keeps streaming).
+         * Null keeps the previous behaviour for a caller with no liveness signal.
+         */
+        airPlayDataRecent: (() -> Boolean)? = null,
     ): Iap2WiredControlResult {
         require(availableCurrentMilliAmps in 0..0xffff) {
             "availableCurrentMilliAmps must be in 0..65535"
@@ -67,6 +74,8 @@ class Iap2WiredControlClient(
         var forwardedFrames = 0
         var carPlayStartSessions = 0
         var startSessionNanos = 0L
+        /** Reports the "media alive" decision once per run so a quiet control channel cannot spam. */
+        var keptLinkAfterSilence = false
         // Issue #84/#61: the live loop previously had no dead-link detection — once the
         // iPhone went quiet, recv kept timing out and the UI sat on "控制通道运行中" forever.
         val silenceMonitor = Iap2PeerSilenceMonitor(peerSilentResetMillis, peerIdleDiagnosticMillis)
@@ -123,7 +132,13 @@ class Iap2WiredControlClient(
                     // Issue #84/#61: surface peer silence in the report, and stop spinning
                     // forever once the iPhone is quiet long after StartSession was sent.
                     silenceMonitor.diagnosticIfDue()?.let { onProgress(it) }
-                    if (carPlayStartSessions > 0 && silenceMonitor.shouldReset()) {
+                    if (
+                        carPlayStartSessions > 0 &&
+                        shouldResetLinkOnPeerSilence(
+                            peerSilent = silenceMonitor.shouldReset(),
+                            airPlayDataRecent = airPlayDataRecent?.invoke(),
+                        )
+                    ) {
                         val idleMs = silenceMonitor.idleMillis()
                         onProgress("iap2 wired peer silent for ${idleMs}ms; resetting link")
                         return Iap2WiredControlResult(
@@ -131,6 +146,17 @@ class Iap2WiredControlClient(
                             stage,
                             forwardedFrames,
                             carPlayStartSessions,
+                        )
+                    }
+                    if (
+                        carPlayStartSessions > 0 && silenceMonitor.shouldReset() && !keptLinkAfterSilence
+                    ) {
+                        // Evidence for the next report: the reset was suppressed on purpose, and how
+                        // long the control channel had actually been quiet while media kept arriving.
+                        keptLinkAfterSilence = true
+                        onProgress(
+                            "iap2 wired peer silent for ${silenceMonitor.idleMillis()}ms " +
+                                "but AirPlay media is still arriving; keeping the link",
                         )
                     }
                     // Issue #95: iPhone alive on iAP2 but no AirPlay TCP — fail fast with a
@@ -293,3 +319,14 @@ data class Iap2WiredControlResult(
     val forwardedFrames: Int,
     val carPlayStartSessionsSent: Int,
 )
+
+/**
+ * Issue #134: decide whether iAP2 silence may reset the wired link.
+ *
+ * Resetting on iAP2 silence alone tore down a working session: the NTDA3's iPhone stops sending iAP2
+ * frames for minutes while video keeps streaming, and the 90 s reset then cost about a minute of
+ * picture. The link may only reset when AirPlay is quiet as well. [airPlayDataRecent] is null when
+ * the caller has no liveness signal, which preserves that caller's previous behaviour.
+ */
+internal fun shouldResetLinkOnPeerSilence(peerSilent: Boolean, airPlayDataRecent: Boolean?): Boolean =
+    peerSilent && airPlayDataRecent != true

@@ -4649,11 +4649,18 @@ class CarPlayHostActivity : ComponentActivity() {
         settingsBaseline = captureSettingsBaseline()
         // Rebuild controls from saved values so a cancelled edit cannot reappear on reopening.
         settingsMenu?.let { previous ->
-            val parent = previous.parent as ViewGroup
-            val index = parent.indexOfChild(previous)
-            parent.removeView(previous)
-            settingsMenu = buildSettingsMenu()
-            parent.addView(settingsMenu, index, FrameLayout.LayoutParams(-1, -1))
+            val parent = previous.parent as? ViewGroup
+            val index = parent?.indexOfChild(previous) ?: -1
+            parent?.removeView(previous)
+            val rebuilt = buildSettingsMenu()
+            if (parent != null) {
+                parent.addView(rebuilt, index, FrameLayout.LayoutParams(-1, -1))
+            } else {
+                // A menu that lost its parent has no slot to reuse. Re-attach the rebuilt one to the content
+                // root instead of throwing out of the gesture handler, which killed the process (issue #134).
+                (videoView?.parent as? ViewGroup)?.addView(rebuilt, FrameLayout.LayoutParams(-1, -1))
+            }
+            settingsMenu = rebuilt
         }
         menuOpen = true
         gestureOverlay?.visibility = View.GONE

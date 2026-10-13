@@ -76,9 +76,39 @@ class StreamReceiveStatsTest {
         stats.processed()
         clock = 5_000_000_000L
         stats.flush()
-        assertTrue(output.last().endsWith(" decryptAvgUs=1250 decryptMaxUs=2000 decryptMBps=300"))
+        assertTrue(output.last().endsWith(" decryptAvgUs=1250 decryptMaxUs=2000 decryptMBps=300.00"))
         clock = 10_000_000_000L
         stats.flush()
         assertTrue(!output.last().contains("decrypt"))
+    }
+
+    /**
+     * Issue #134 on the Nissan NTDA3 head unit: 59 video packets, 1,977,272 bytes and 74,831 us average
+     * decrypt time per five-second window. That is about 0.45 MB/s, and the integer division used to
+     * print it as 0 - the one number that shows decryption is the bottleneck read as zero.
+     */
+    @Test fun decryptThroughputBelowOneMegabytePerSecondIsNotRoundedAway() {
+        var clock = 0L
+        val output = mutableListOf<String>()
+        val stats = StreamReceiveStats("video", output::add) { clock }
+        stats.received(2_000_000)
+        stats.decrypted(4_415_000_000L, 1_977_272)
+        stats.processed()
+        clock = 5_000_000_000L
+        stats.flush()
+        assertTrue(output.last().endsWith("decryptMBps=0.45"))
+    }
+
+    @Test fun decryptThroughputRoundsToTheNearestHundredth() {
+        var clock = 0L
+        val output = mutableListOf<String>()
+        val stats = StreamReceiveStats("video", output::add) { clock }
+        stats.received(2_000_000)
+        // 1,000,000 bytes in 3,000,000 ns is 333.33 MB/s.
+        stats.decrypted(3_000_000L, 1_000_000)
+        stats.processed()
+        clock = 5_000_000_000L
+        stats.flush()
+        assertTrue(output.last().endsWith("decryptMBps=333.33"))
     }
 }
