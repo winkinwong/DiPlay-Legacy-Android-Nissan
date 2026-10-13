@@ -1,26 +1,47 @@
-# DiPlay Legacy Android
+# DiPlay Legacy Android — Nissan X-Trail (奇骏) head-unit optimization
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
+> **This repository is the Nissan X-Trail (奇骏) head-unit optimization build.**
+> Its verification and optimization target is the **Nissan X-Trail**: tested on a **2020 X-Trail** whose head unit is a
+> **Hangsheng HSAE `NTDA3_BOARD_S02` / Android 4.4.3 (API 19) / 32-bit freescale sabresd (`NTDA3_P350`)** with an iPhone
+> (tested: iPhone 14 Pro / iOS 27.0) connected over wired USB CarPlay. X-Trail-specific changes are tracked in
+> [unreleased changes](docs/RELEASE-NOTES-NEXT.md) and the [CHANGELOG](CHANGELOG.md).
+>
 > This project is modified from [shihabal3amri/DiPlay](https://github.com/shihabal3amri/DiPlay) with deep compatibility refactoring.
 >
 > **Scope difference with upstream**:
 > - Upstream DiPlay supports **Android 7.0+ (API 24)** in latest releases, primarily targeting modern 64-bit platforms.
-> - This project focuses on **Android 4.4 KitKat (API 19) through Android 6.0**, as well as legacy 32-bit automotive hardware architectures (`armeabi-v7a`, `x86`, Allwinner T3, MediaTek, AC8227L), low-level Linux usbfs driver hardening, and proprietary Bluetooth stacks (e.g., Hangsheng HSAE for Dongfeng Nissan).
+> - This project focuses on **Android 4.4 KitKat (API 19) through Android 6.0**, as well as legacy 32-bit automotive hardware architectures (`armeabi-v7a`, `x86`, Allwinner T3, MediaTek, AC8227L), low-level Linux usbfs driver hardening, and proprietary Bluetooth stacks (e.g., Hangsheng HSAE for Dongfeng Nissan, **including the X-Trail**).
 >
 > Upstream project: https://github.com/shihabal3amri/DiPlay
 
-**CarPlay for compatible BYD and legacy Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay`.
+**CarPlay for the Nissan X-Trail and other compatible legacy Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay`. The upstream's BYD support stays in the code, but **this repository is verified and optimized for the X-Trail**.
 
-> **BYD support scope:** These projects focus on BYD cars. They may work on other brands, but other brands are unsupported and there are no plans to add support or fix brand-specific incompatibilities.
+> **Support scope:** This repository focuses on the **Nissan X-Trail** head unit; the upstream's BYD support remains in the code but is not the target of its verification or optimization. Other brands may work, but they are unsupported here and there are no plans to add support or fix brand-specific incompatibilities.
 
-[Download & website](https://shihabal3amri.github.io/DiPlay/) · [Release](https://github.com/shihabal3amri/DiPlay/releases/tag/v0.2.14) · [Report a problem](https://github.com/shihabal3amri/DiPlay/issues/new/choose)
+[Download & website](https://shihabal3amri.github.io/DiPlay/) · [Release](https://github.com/shihabal3amri/DiPlay/releases/tag/v0.2.14) · [Report a problem](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/new/choose)
 
 ![DiPlay home](site/assets/home.png)
 
+## Optimizations for the Nissan X-Trail (unreleased)
+
+> These changes are **in this repository's source tree** but have not shipped in a release yet. Item-by-item notes are in [unreleased changes](docs/RELEASE-NOTES-NEXT.md); the report behind them is [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134).
+> They are verified **offline only** — unit tests, log replay, micro-benchmarks and the full CI command — **not yet re-tested on the car**.
+
+| Problem | What it looked like on the X-Trail | What this repository changes |
+| :--- | :--- | :--- |
+| **Stuttering video** | 9–91 ms of decryption per frame (`decryptAvgUs` in the logs), dropped frames | Android 4.4 has no system ChaCha20-Poly1305, so every frame fell back to BouncyCastle's **pure-Java** decryption. The cipher now prefers the platform implementation and falls back to the **bundled Conscrypt native** one (9.1× faster for the same code path in an offline benchmark). |
+| **Lost crash evidence** | A crashed run exported a report with no `FATAL` line, so no stack could ever be obtained | A multi-line stack was handed to the redactor as one line, and the redactor drops any line containing a newline. Lines are now redacted individually, a durable crash record is kept on disk (**survives a restart**), and the report gained a `Durable crash record` section. |
+| **Settings overlay crash** | DiPlay died after opening and closing the settings overlay a few times | Rebuilding the settings menu cast the previous menu's parent to a `ViewGroup`; when it had been detached that threw out of the gesture handler. The rebuilt menu is now re-attached safely. |
+| **Control channel stalls** | Needed a cable replug to recover | That guard watched iAP2 control frames only. On the X-Trail the iPhone sends none for minutes while AirPlay keeps streaming, so the 90 s reset tore down a **healthy** session. The reset now also requires AirPlay media to have gone quiet, and it logs that it kept the link. |
+| **Broken diagnostics** | `decryptMBps` always read 0 | Integer division truncated every throughput below 1 MB/s. It now reports two decimals, and the report gained a `Frame cipher:` line naming the implementation actually in use. |
+
+**Checked, no code change needed:** the "no sound" report was reconciled against the full log — the app's data path was healthy (a continuous 105 s 48 kHz media stream, zero write errors, zero underruns), so it is a head-unit audio-source routing issue, matching the upstream author's conclusion in the issue.
+
 ## 0.2.14 — public preview
 
-Install on the **car**, not the iPhone. No jailbreak, dongle, Mac, account or authentication server is required for use. Core CarPlay does not require ADB; optional dashboard, battery, wheel-speed and parked-video features do. Your head unit must permit APK installation. The APK supports Android 9+ (API 28); wireless supports Wi-Fi Direct, the car’s existing hotspot or Existing Wi-Fi / Same LAN. Android 9 Wi-Fi Direct uses a firmware-dependent legacy path with generated group credentials and unverified requested frequency; see [Android 9 Wi-Fi Direct](docs/ANDROID9_WIFI_DIRECT.md). Android 10+ verifies its negotiated group frequency.
+Install on the **car**, not the iPhone. No jailbreak, dongle, Mac, account or authentication server is required for use. Core CarPlay does not require ADB; optional dashboard, battery, wheel-speed and parked-video features do. Your head unit must permit APK installation. **This repository builds with minSdk 19 (Android 4.4)**, so legacy head units such as the X-Trail's can install it; individual wireless features still need a recent enough Android version (car hotspot Android 9+, Wi-Fi Direct Android 10+), and some use a firmware-dependent legacy path — see [Android 9 Wi-Fi Direct](docs/ANDROID9_WIFI_DIRECT.md). Android 10+ verifies its negotiated group frequency.
 
 - Wired USB and wireless CarPlay with local authentication.
 - BYD HUD navigation with arrows, distance and street names on verified firmware.

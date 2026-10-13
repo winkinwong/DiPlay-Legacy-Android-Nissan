@@ -1,18 +1,44 @@
-# DiPlay Legacy Android (中文版)
+# DiPlay Legacy Android（日产奇骏车机优化版）
 
 [简体中文](README.zh-CN.md) · [English](README.md)
 
+> **本仓库定位：日产奇骏（X-Trail）车机的优化版本。**
+> 主要验证与优化对象是 **日产奇骏**——实测机型为 **2020 款奇骏**，车机为
+> **HSAE 航盛 `NTDA3_BOARD_S02` / Android 4.4.3 (API 19) / 32 位 freescale sabresd（`NTDA3_P350`）**，
+> 搭配 iPhone（实测 iPhone 14 Pro / iOS 27.0）通过 USB 有线连接 CarPlay。
+> 本仓库围绕该机型持续优化，针对奇骏的改动见 [未发布改动](docs/RELEASE-NOTES-NEXT.md) 与 [CHANGELOG](CHANGELOG.md)。
+>
 > 本项目基于开源项目 [shihabal3amri/DiPlay](https://github.com/shihabal3amri/DiPlay) 进行深度兼容与重构。
 >
 > **关于与上游原版的定位差异**：
 > - 上游原项目在最新版本已向下适配至 **Android 7.0+ (API 24)**，主要面向 64 位及较新版本的车机系统。
-> - 本项目致力于补充 **Android 4.4 KitKat (API 19) 至 Android 6.0** 这一区间的极老车机市场，以及全志 T3、联发科 MTK、AC8227L、Intel x86 等 **32 位老旧芯片与定制 ROM**，并对日产航盛等专有蓝牙车机提供深度定制兼容。
+> - 本项目致力于补充 **Android 4.4 KitKat (API 19) 至 Android 6.0** 这一区间的极老车机市场，以及全志 T3、联发科 MTK、AC8227L、Intel x86 等 **32 位老旧芯片与定制 ROM**，并对日产航盛等专有蓝牙车机（**含奇骏**）提供深度定制兼容。
 >
 > 上游原项目地址：https://github.com/shihabal3amri/DiPlay
 
-为兼容的比亚迪及老旧 Android 车机提供有线（USB）及无线 CarPlay 互联支持，内置熟悉的 DiAuto 风格界面。独立应用包名：`com.shihab.diplay`。
+为**日产奇骏**及其他兼容的老旧 Android 车机提供有线（USB）及无线 CarPlay 互联支持，内置熟悉的 DiAuto 风格界面。独立应用包名：`com.shihab.diplay`。上游对比亚迪等车型的适配随代码保留，但**本仓库的验证与优化以日产奇骏为准**。
 
 **验证边界：最低安装版本不等于真机连接保证。** 当前 T3 / Android 4.4 适配基于 API 19 软件检查和模拟器专项测试；尚未完成该 T3 车机与 iPhone 15 Pro / iOS 26.6 的 USB、蓝牙、热点、画面、声音和触控全链路验证。内置实验性附件身份的本地签名成功，也不等于 iPhone 必然认可它。专项结果见 [T3 验证记录](docs/T3-ANDROID44-VALIDATION.md)。
+
+**奇骏验证现状**：2020 款奇骏（HSAE NTDA3 / Android 4.4.3）已通过 USB 成功连接 CarPlay 并正常出画（iPhone 14 Pro / iOS 27.0）。画面卡顿、崩溃取证、控制通道等问题的优化见下方「针对日产奇骏的优化」；这些改动目前**只以离线证据验证**（单元测试、日志回放、微基准），**尚未在实车上复测**。问题报告与讨论见 [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134)。
+
+---
+
+## 针对日产奇骏的优化（未发布）
+
+> 以下改动已在**本仓库代码中**，尚未随正式版本发布；逐项记录见 [docs/RELEASE-NOTES-NEXT.md](docs/RELEASE-NOTES-NEXT.md)，
+> 对应的问题报告见 [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134)。
+> 验证方式为**离线证据**（单元测试、日志回放、微基准、完整 CI），**尚未在实车上复测**。
+
+| 问题 | 奇骏上的表现 | 本仓库的优化 |
+| :--- | :--- | :--- |
+| **画面卡顿** | 视频解密每帧 9–91 ms（`decryptAvgUs` 实测），画面掉帧 | Android 4.4 无系统级 ChaCha20-Poly1305，原先每帧回退到 BouncyCastle **纯 Java 解密**；现改为平台实现优先、失败时用**打包内 Conscrypt 的原生实现**（离线基准同代码路径快 9.1×） |
+| **崩溃取证失效** | 崩溃后导出的报告里 `FATAL` 恒为空，拿不到堆栈 | 多行崩溃堆栈被日志脱敏环节整条丢弃 → 改为逐行脱敏；新增持久化崩溃记录（**重启后仍可导出**），报告中增加 `Durable crash record` 段落 |
+| **三指下拉设置闪退** | 反复进出设置面板后「终止运行」 | 设置面板重建时对父容器的强转会抛 `NullPointerException`（位于手势处理器内）→ 改为安全解析并重新挂载；同时修复崩溃堆栈无法落盘的问题 |
+| **控制通道偶发卡死/断流** | 需重插数据线才能恢复 | 该防护只看 iAP2 控制帧；奇骏上 iPhone 可静默 90 秒而视频仍在正常传输，于是**被误判为链路死亡而拆掉正常会话** → 现在仅当 AirPlay 媒体**同样静默**才复位，并输出取证日志 |
+| **诊断指标缺陷** | 报告里 `decryptMBps` 恒为 0 | 整数除法把低于 1 MB/s 的吞吐截断成 0 → 改为保留两位小数；报告新增 `Frame cipher:` 行，标明实际使用的解密实现 |
+
+**已核查、不涉及代码改动的问题**：音频无声经完整日志复核为**车机音频源路由侧**问题（应用侧数据链路健康：连续 105 秒 48 kHz 媒体流、0 写错误、0 欠载），与上游作者在 issue 中的结论一致。
 
 ---
 
