@@ -755,14 +755,21 @@ class CarPlayHostActivity : ComponentActivity() {
             try {
                 vpnConsent.launch(consent)
             } catch (e: ActivityNotFoundException) {
-                // Issue #109: the VPN consent dialog is missing on this ROM. Consent can
-                // never be granted, so establish() will always fail — fail loudly instead
-                // of entering an infinite "Cannot create interface" retry loop.
+                // Issue #109: the VPN consent dialog is missing on this ROM.
+                // Ported from jiuyueji/diplay_changan@148eeb9: a ROM that drops the
+                // dialog usually does not enforce consent either, so attempt the wired
+                // path directly instead of giving up. Any rejection surfaces as
+                // AttachResult.Failed, never a crash or infinite retry loop.
                 Log.w(TAG, "VPN confirmation dialog not found on device (com.android.vpndialogs missing)", e)
-                appendLog("VPN dialog unavailable (com.android.vpndialogs missing); VPN consent cannot be granted on this head unit")
+                appendLog("VPN dialog unavailable (com.android.vpndialogs missing); attempting direct wired connection")
                 awaitingVpnConsent = false
                 vpnConsentUnavailable = true
-                setStatus(getString(R.string.vpn_consent_unavailable))
+                vpnReady = true
+                runCatching { maybeStartCarPlay() }
+                    .onFailure { startError ->
+                        appendLog("Wired fallback start failed ${startError.javaClass.simpleName}: ${startError.message}")
+                    }
+                setStatus(getString(R.string.vpn_consent_launch_failed))
             } catch (e: SecurityException) {
                 Log.w(TAG, "VPN confirmation dialog launch permission denied", e)
                 appendLog("VPN dialog launch denied; VPN consent cannot be granted on this head unit")
