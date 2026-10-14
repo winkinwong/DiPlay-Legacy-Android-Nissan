@@ -6,6 +6,7 @@
 - Keep the wired iAP2 link while AirPlay media is still arriving instead of resetting after 90 s of control silence, which tore down a healthy session on the X-Trail.
 - Report sub-1 MB/s decrypt throughput instead of 0 and add a `Frame cipher:` line; reposition the README as the X-Trail (T32) head-unit optimization build with an explicit trademark disclaimer.
 - Signed with this repository's own release certificate (alias `t32-key0`), which cannot install over a build signed by the author's v0.2.21 key.
+- Validated on the target head unit on 2026-10-14: audio healthy, USB self-recovered without replugging, video smooth via the native cipher; touch-swipe latency is the known item tracked for the next release.
 
 See [v0.2.46-t32.1 release notes](docs/RELEASE-NOTES-0.2.46-t32.1.md).
 
