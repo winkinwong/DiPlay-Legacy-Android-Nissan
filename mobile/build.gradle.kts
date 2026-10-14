@@ -66,6 +66,7 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -84,6 +85,16 @@ afterEvaluate {
     tasks.withType<L8DexDesugarLibTask>().configureEach {
         if (name.endsWith("AndroidTest")) {
             keepRulesConfigurations.add("-keep class j$.** { *; }")
+        }
+    }
+}
+
+// Name release APKs with our fork convention: DiPlay-v<versionName>-legacy-release.apk
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        val versionName = android.defaultConfig.versionName ?: "unknown"
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("DiPlay-v${versionName}-legacy-release.apk")
         }
     }
 }
