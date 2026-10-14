@@ -33,8 +33,8 @@ android {
         multiDexEnabled = true
         multiDexKeepProguard = file("multidex-config.pro")
         testInstrumentationRunner = "com.shilapi.xcertplay.T3LegacyInstrumentation"
-        versionCode = 67
-        versionName = "0.2.46-nissan.1"
+        versionCode = 68
+        versionName = "0.2.46-t32.1"
 
     }
 
@@ -110,7 +110,7 @@ abstract class VerifyDiPlaySigningTask : DefaultTask() {
      *
      * `bca015c0…` is the original DiPlay Private Beta certificate (author's v0.2.21 key): an APK
      * signed with it installs over an existing DiPlay installation. `584ef03c…` is this
-     * repository's own nissan certificate (key alias `nissan-key0`), used by `0.2.46-nissan.1`
+     * repository's own release certificate (key alias `t32-key0`), used by `0.2.46-t32.1`
      * and later local releases; it cannot update an installation signed with the original key, so
      * such releases require an uninstall first. Any other fingerprint is an accidental key.
      *
@@ -146,14 +146,14 @@ abstract class VerifyDiPlaySigningTask : DefaultTask() {
             .digest(cert.encoded).joinToString("") { "%02x".format(it.toInt() and 0xff) }
         check(fingerprint.lowercase() in allowedReleaseFingerprints) {
             "Release certificate $fingerprint is neither the original v0.2.21 DiPlay certificate " +
-                "nor this repository's nissan certificate; refusing to create an update-incompatible APK."
+                "nor this repository's own release certificate; refusing to create an update-incompatible APK."
         }
     }
 }
 
 val verifyReleaseSigningIdentity by tasks.registering(VerifyDiPlaySigningTask::class) {
     group = "verification"
-    description = "Validate a known release certificate (original DiPlay or this repository's nissan key) before any release APK is signed."
+    description = "Validate a known release certificate (original DiPlay or this repository's own release key) before any release APK is signed."
     keyStoreFile.set(layout.file(providers.provider { android.signingConfigs.getByName("release").storeFile!! }))
     val localKeystore = rootProject.file("release-signing.jks").takeIf { it.isFile }
         ?: rootProject.file("release-signing.keystore").takeIf { it.isFile }

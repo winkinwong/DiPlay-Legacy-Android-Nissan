@@ -4,4 +4,4 @@ Changes through DiPlay 0.2.14 are documented in [0.2.14 release notes](RELEASE-N
 
 No unreleased changes are recorded yet. Add future unreleased changes here.
 
-Changes that were previously listed here shipped in [0.2.46-nissan.1 release notes](RELEASE-NOTES-0.2.46-nissan.1.md).
+Changes that were previously listed here shipped in [0.2.46-t32.1 release notes](RELEASE-NOTES-0.2.46-t32.1.md).

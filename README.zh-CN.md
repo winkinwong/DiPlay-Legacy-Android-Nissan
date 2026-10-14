@@ -1,8 +1,8 @@
-# DiPlay Legacy Android（日产奇骏车机优化版）
+# DiPlay Legacy Android（奇骏 X-Trail T32 车机优化版）
 
 [简体中文](README.zh-CN.md) · [English](README.md)
 
-> **本仓库定位：日产奇骏（X-Trail）车机的优化版本。**
+> **本仓库定位：奇骏（X-Trail，底盘代号 T32）车机的优化版本。**
 > 主要验证与优化对象是 **日产奇骏**——实测机型为 **2020 款奇骏**，车机为
 > **HSAE 航盛 `NTDA3_BOARD_S02` / Android 4.4.3 (API 19) / 32 位 freescale sabresd（`NTDA3_P350`）**，
 > 搭配 iPhone（实测 iPhone 14 Pro / iOS 27.0）通过 USB 有线连接 CarPlay。
@@ -16,6 +16,8 @@
 >
 > 上游原项目地址：https://github.com/shihabal3amri/DiPlay
 
+> **商标声明：** 本项目为独立第三方开源项目，与日产自动车株式会社、东风日产汽车销售有限公司及其关联公司**无任何关联**，未获其授权或背书。NISSAN、X-Trail、奇骏均为各自权利人的注册商标，此处仅用于说明适配车型与车机硬件。CarPlay 及其图标为 Apple Inc. 的商标。
+
 为**日产奇骏**及其他兼容的老旧 Android 车机提供有线（USB）及无线 CarPlay 互联支持，内置熟悉的 DiAuto 风格界面。独立应用包名：`com.shihab.diplay`。上游对比亚迪等车型的适配随代码保留，但**本仓库的验证与优化以日产奇骏为准**。
 
 **验证边界：最低安装版本不等于真机连接保证。** 当前 T3 / Android 4.4 适配基于 API 19 软件检查和模拟器专项测试；尚未完成该 T3 车机与 iPhone 15 Pro / iOS 26.6 的 USB、蓝牙、热点、画面、声音和触控全链路验证。内置实验性附件身份的本地签名成功，也不等于 iPhone 必然认可它。专项结果见 [T3 验证记录](docs/T3-ANDROID44-VALIDATION.md)。
@@ -24,7 +26,7 @@
 
 ---
 
-## 针对日产奇骏的优化（未发布）
+## 针对奇骏（X-Trail T32）车机的优化（未发布）
 
 > 以下改动已在**本仓库代码中**，尚未随正式版本发布；逐项记录见 [docs/RELEASE-NOTES-NEXT.md](docs/RELEASE-NOTES-NEXT.md)，
 > 对应的问题报告见 [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134)。
@@ -140,4 +142,4 @@
 
 - 基于 [xcertplay](https://github.com/shilapi/xcertplay) (GPL-3.0) 与 [shihabal3amri/DiPlay](https://github.com/shihabal3amri/DiPlay) 开发。
 - UI 交互衍生自 [DiAuto](https://github.com/shihabal3amri/DiAuto) (AGPL-3.0)。
-- CarPlay 为 Apple Inc. 的注册商标，本项目仅供技术学习与车载兼容性研究。
+- CarPlay 为 Apple Inc. 的注册商标；NISSAN、X-Trail、奇骏为日产自动车株式会社的注册商标，本项目与其无任何关联，提及仅用于说明适配车型。本项目仅供技术学习与车载兼容性研究。

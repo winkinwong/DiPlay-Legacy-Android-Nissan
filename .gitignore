@@ -42,3 +42,9 @@ release-signing.properties
 *.key
 *.apk
 *.aab
+
+# Local planning notes (may contain secrets - never commit)
+/findings.md
+/progress.md
+/task_plan.md
+

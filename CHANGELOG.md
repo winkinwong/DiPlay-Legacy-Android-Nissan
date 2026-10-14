@@ -1,13 +1,13 @@
-# DiPlay 0.2.46-nissan.1 — 2026-10-14
+# DiPlay 0.2.46-t32.1 — 2026-10-14
 
-- First Nissan X-Trail optimization release: built on the author's v0.2.46 with the four fixes from issue #134.
+- First X-Trail (chassis T32) head-unit optimization release: built on the author's v0.2.46 with the four fixes from issue #134.
 - Stop Android 4.4 frames from falling back to BouncyCastle's Java ChaCha20-Poly1305; prefer the platform implementation and fall back to the bundled Conscrypt native one (9.1× faster on the same code path in an offline benchmark).
 - Redact crash stacks line by line and keep a durable crash record that survives a restart, so an exported report finally carries the stack instead of an empty `FATAL`.
 - Keep the wired iAP2 link while AirPlay media is still arriving instead of resetting after 90 s of control silence, which tore down a healthy session on the X-Trail.
-- Report sub-1 MB/s decrypt throughput instead of 0 and add a `Frame cipher:` line; reposition the README as the Nissan X-Trail (奇骏) head-unit optimization build.
-- Signed with this repository's own nissan certificate (alias `nissan-key0`), which cannot install over a build signed by the author's v0.2.21 key.
+- Report sub-1 MB/s decrypt throughput instead of 0 and add a `Frame cipher:` line; reposition the README as the X-Trail (T32) head-unit optimization build with an explicit trademark disclaimer.
+- Signed with this repository's own release certificate (alias `t32-key0`), which cannot install over a build signed by the author's v0.2.21 key.
 
-See [v0.2.46-nissan.1 release notes](docs/RELEASE-NOTES-0.2.46-nissan.1.md).
+See [v0.2.46-t32.1 release notes](docs/RELEASE-NOTES-0.2.46-t32.1.md).
 
 # DiPlay 0.2.46 — 2026-10-13
 

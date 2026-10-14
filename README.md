@@ -1,9 +1,9 @@
-# DiPlay Legacy Android — Nissan X-Trail (奇骏) head-unit optimization
+# DiPlay Legacy Android — X-Trail (T32) head-unit optimization
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-> **This repository is the Nissan X-Trail (奇骏) head-unit optimization build.**
-> Its verification and optimization target is the **Nissan X-Trail**: tested on a **2020 X-Trail** whose head unit is a
+> **This repository is the X-Trail (chassis code T32) head-unit optimization build.**
+> Its verification and optimization target is the **Nissan X-Trail (奇骏, chassis T32)**: tested on a **2020 X-Trail** whose head unit is a
 > **Hangsheng HSAE `NTDA3_BOARD_S02` / Android 4.4.3 (API 19) / 32-bit freescale sabresd (`NTDA3_P350`)** with an iPhone
 > (tested: iPhone 14 Pro / iOS 27.0) connected over wired USB CarPlay. X-Trail-specific changes are tracked in
 > [unreleased changes](docs/RELEASE-NOTES-NEXT.md) and the [CHANGELOG](CHANGELOG.md).
@@ -16,6 +16,8 @@
 >
 > Upstream project: https://github.com/shihabal3amri/DiPlay
 
+> **Trademark notice / 商标声明:** This is an independent third-party open-source project, not affiliated with, endorsed by, or authorized by Nissan Motor Co., Ltd., Dongfeng Nissan (东风日产) or their affiliates. NISSAN, X-Trail and 奇骏 are trademarks of their respective owners, referenced here only to describe vehicle and head-unit compatibility. CarPlay and its icon belong to Apple Inc.
+
 **CarPlay for the Nissan X-Trail and other compatible legacy Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay`. The upstream's BYD support stays in the code, but **this repository is verified and optimized for the X-Trail**.
 
 > **Support scope:** This repository focuses on the **Nissan X-Trail** head unit; the upstream's BYD support remains in the code but is not the target of its verification or optimization. Other brands may work, but they are unsupported here and there are no plans to add support or fix brand-specific incompatibilities.
@@ -24,7 +26,7 @@
 
 ![DiPlay home](site/assets/home.png)
 
-## Optimizations for the Nissan X-Trail (unreleased)
+## Optimizations for the X-Trail (T32) head unit (unreleased)
 
 > These changes are **in this repository's source tree** but have not shipped in a release yet. Item-by-item notes are in [unreleased changes](docs/RELEASE-NOTES-NEXT.md); the report behind them is [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134).
 > They are verified **offline only** — unit tests, log replay, micro-benchmarks and the full CI command — **not yet re-tested on the car**.
@@ -90,7 +92,7 @@ The app and release website are available in English, Arabic, Russian, Ukrainian
 
 ## Source and credits
 
-Based on [xcertplay](https://github.com/shilapi/xcertplay), GPL-3.0. The home/settings UI and website adapt [DiAuto](https://github.com/shihabal3amri/DiAuto), AGPL-3.0; that license is included in `docs/licenses`. Preserve those notices when distributing modifications. CarPlay and its icon belong to Apple Inc.; no Apple or BYD affiliation or endorsement is implied.
+Based on [xcertplay](https://github.com/shilapi/xcertplay), GPL-3.0. The home/settings UI and website adapt [DiAuto](https://github.com/shihabal3amri/DiAuto), AGPL-3.0; that license is included in `docs/licenses`. Preserve those notices when distributing modifications. CarPlay and its icon belong to Apple Inc.; NISSAN, X-Trail and 奇骏 are trademarks of Nissan Motor Co., Ltd.; no Apple, BYD or Nissan affiliation or endorsement is implied.
 
 This repository starts with a clean public source snapshot. Local research, tester reports and release-signing secrets are excluded. The complete source corresponding to the APK is provided with every release; experimental runtime identity assets are described separately in the build instructions and notices.
 
