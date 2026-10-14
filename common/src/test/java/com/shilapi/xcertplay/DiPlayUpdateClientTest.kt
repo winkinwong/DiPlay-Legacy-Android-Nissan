@@ -12,8 +12,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DiPlayUpdateClientTest {
-    private val name = "DiPlay-v0.2.34-legacy-release.apk"
-    private val prefix = "https://github.com/programmerguohuajing/DiPlay-Legacy-Android/releases/download/v0.2.34/"
+    private val name = "DiPlay-v0.2.47-t32.1-legacy-release.apk"
+    private val prefix = "https://github.com/winkinwong/DiPlay-Legacy-Android-T32/releases/download/v0.2.47-t32.1/"
 
     @Test fun legacyHttpOnlyAllowsTls12NeverSsl3() {
         val spec = DiPlayUpdateClient.legacyTlsSpec()
@@ -49,24 +49,39 @@ class DiPlayUpdateClientTest {
         assertFalse(DiPlayUpdateClient.newerVersion("vabc", "0.2.33"))
     }
 
+    @Test fun comparesTheT32QualifierOnBothSides() {
+        // The installed versionName of this fork, e.g. 0.2.46-t32.1.
+        assertTrue(DiPlayUpdateClient.newerVersion("v0.2.46-t32.1", "0.2.45"))
+        assertTrue(DiPlayUpdateClient.newerVersion("v0.2.46-t32.2", "0.2.46-t32.1"))
+        assertTrue(DiPlayUpdateClient.newerVersion("v0.2.47-t32.1", "0.2.46-t32.9"))
+        assertTrue("A plain tag outranks the same base release", DiPlayUpdateClient.newerVersion("v0.2.47", "0.2.46-t32.9"))
+        assertFalse(DiPlayUpdateClient.newerVersion("v0.2.46-t32.1", "0.2.46-t32.1"))
+        assertFalse(DiPlayUpdateClient.newerVersion("v0.2.46-t32.1", "0.2.46-t32.2"))
+        assertFalse(DiPlayUpdateClient.newerVersion("v0.2.46-t32.1", "0.2.47"))
+        assertFalse("A plain tag is not newer than the same base t32 build",
+            DiPlayUpdateClient.newerVersion("v0.2.46", "0.2.46-t32.1"))
+        assertFalse(DiPlayUpdateClient.newerVersion("v0.2.46-t32.x", "0.2.46"))
+        assertFalse(DiPlayUpdateClient.newerVersion("v0.2.46-nissan.2", "0.2.46"))
+    }
+
     @Test fun discoversReleaseOnlyWithMatchingApkAndChecksumAssets() {
-        val release = DiPlayUpdateClient.parseLatest(json(), "0.2.33")
-        assertEquals("v0.2.34", release?.tag)
+        val release = DiPlayUpdateClient.parseLatest(json(), "0.2.46-t32.1")
+        assertEquals("v0.2.47-t32.1", release?.tag)
         assertEquals(name, release?.apkName)
         assertEquals(prefix + name, release?.apkUrl)
-        assertNull(DiPlayUpdateClient.parseLatest(json(), "0.2.34"))
-        assertNull(DiPlayUpdateClient.parseLatest(json(prerelease = true), "0.2.33"))
+        assertNull(DiPlayUpdateClient.parseLatest(json(), "0.2.47-t32.1"))
+        assertNull(DiPlayUpdateClient.parseLatest(json(prerelease = true), "0.2.46-t32.1"))
     }
 
     @Test fun rejectsMissingOrExternalReleaseAssets() {
         try {
-            DiPlayUpdateClient.parseLatest(json(shaName = "different.sha256"), "0.2.33")
+            DiPlayUpdateClient.parseLatest(json(shaName = "different.sha256"), "0.2.46-t32.1")
             throw AssertionError("Missing checksum should fail")
         } catch (expected: java.io.IOException) {
             assertTrue(expected.message!!.contains("SHA-256"))
         }
         try {
-            DiPlayUpdateClient.parseLatest(json(apkUrl = "https://malicious.example/$name"), "0.2.33")
+            DiPlayUpdateClient.parseLatest(json(apkUrl = "https://malicious.example/$name"), "0.2.46-t32.1")
             throw AssertionError("External asset should fail")
         } catch (expected: java.io.IOException) {
             assertTrue(expected.message!!.contains("APK"))
@@ -90,7 +105,7 @@ class DiPlayUpdateClientTest {
         shaName: String = "$name.sha256",
         apkUrl: String = prefix + name,
     ): String = org.json.JSONObject().apply {
-        put("tag_name", "v0.2.34")
+        put("tag_name", "v0.2.47-t32.1")
         put("prerelease", prerelease)
         put("draft", false)
         put("body", "A stable update")

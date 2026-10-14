@@ -4948,7 +4948,10 @@ class CarPlayHostActivity : ComponentActivity() {
             return true
         }
         val contacts = CarPlayTouchMapper.contacts(event, content)
-        val queued = controller?.sendTouch(contacts) ?: false
+        val queued = controller?.sendTouch(
+            contacts,
+            coalescable = event.actionMasked == MotionEvent.ACTION_MOVE,
+        ) ?: false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN,
             MotionEvent.ACTION_POINTER_DOWN,

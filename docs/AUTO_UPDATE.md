@@ -26,8 +26,14 @@
 Publish **both** of the following assets for each stable version. `versionName` must increase, `versionCode` must increase and the original app signature must be retained.
 
 ```
-DiPlay-v0.2.34-legacy-release.apk
-DiPlay-v0.2.34-legacy-release.apk.sha256
+DiPlay-v0.2.47-t32.1-legacy-release.apk
+DiPlay-v0.2.47-t32.1-legacy-release.apk.sha256
 ```
+
+This fork checks for updates **only** in `winkinwong/DiPlay-Legacy-Android-T32`. Release tags
+use the form `vX.Y.Z-t32.N` (a plain `vX.Y.Z` tag is also accepted); the qualifier on the
+installed `versionName` (`X.Y.Z-t32.N`) is compared after the base version. A build signed by
+the upstream author's certificate is never updated in place — uninstall it and install this
+fork's release first.
 
 The SHA-256 file uses the format `<64-lowercase-hex>  <apk-filename>`. If either asset is missing, invalid, unsigned with the existing certificate or served from a different origin, the app refuses to install it.

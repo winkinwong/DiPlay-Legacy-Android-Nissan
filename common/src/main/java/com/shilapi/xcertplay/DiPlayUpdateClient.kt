@@ -18,12 +18,14 @@ import okhttp3.OkUrlFactory
 
 /** GitHub-only updates with a domestic HTTPS mirror for release assets. */
 internal object DiPlayUpdateClient {
-    private const val REPO = "programmerguohuajing/DiPlay-Legacy-Android"
+    private const val REPO = "winkinwong/DiPlay-Legacy-Android-T32"
     private const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"
     private const val MAX_METADATA = 512 * 1024
     private const val MAX_DIGEST_FILE = 2 * 1024
     private const val MAX_APK_BYTES = 120L * 1024 * 1024
-    private val tagPattern = Regex("^v(\\d+)\\.(\\d+)\\.(\\d+)$")
+    // Releases of this fork carry the chassis-code qualifier, e.g. v0.2.47-t32.2.
+    private val tagPattern = Regex("^v(\\d+)\\.(\\d+)\\.(\\d+)(?:-t32\\.(\\d+))?$")
+    private val installedPattern = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-t32\\.(\\d+))?$")
     private val digestPattern = Regex("^[a-fA-F0-9]{64}$")
 
     data class Release(
@@ -35,19 +37,23 @@ internal object DiPlayUpdateClient {
         val declaredSize: Long,
     )
 
-    /** Treat malformed, prerelease and non-increasing version labels as non-updates. */
+    /**
+     * Treat malformed, prerelease and non-increasing version labels as non-updates.
+     * Both sides compare `X.Y.Z` first, then the optional `-t32.N` qualifier
+     * (a plain `X.Y.Z` counts as qualifier 0).
+     */
     fun newerVersion(remote: String, installed: String): Boolean {
-        val remoteParts = tagPattern.matchEntire(remote)?.groupValues?.drop(1)
-            ?.mapNotNull { it.toIntOrNull() } ?: return false
-        val localParts = installed.removePrefix("v").substringBefore('-').split('.')
-            .takeIf { it.size == 3 }?.mapNotNull { it.toIntOrNull() } ?: return false
-        if (localParts.size != 3) return false
+        val remoteParts = parseVersion(remote, tagPattern) ?: return false
+        val localParts = parseVersion(installed.removePrefix("v"), installedPattern) ?: return false
         for (index in 0..2) {
             if (remoteParts[index] > localParts[index]) return true
             if (remoteParts[index] < localParts[index]) return false
         }
-        return false
+        return remoteParts[3] > localParts[3]
     }
+
+    private fun parseVersion(label: String, pattern: Regex): List<Int>? =
+        pattern.matchEntire(label)?.groupValues?.drop(1)?.map { it.toIntOrNull() ?: 0 }
 
     /** Discover releases only from the canonical GitHub repository. */
     fun latest(installed: String): Release? = latestFromGitHub(installed)

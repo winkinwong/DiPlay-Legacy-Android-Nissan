@@ -9,7 +9,7 @@ import java.io.StringReader
  * Non-semver / preview tags are ignored.
  */
 internal object DiPlayAtomSource {
-    private const val REPO = "https://github.com/programmerguohuajing/DiPlay-Legacy-Android"
+    private const val REPO = "https://github.com/winkinwong/DiPlay-Legacy-Android-T32"
     data class Entry(val tag: String, val notes: String)
 
     fun newest(xml: String, installedVersion: String): Entry? {

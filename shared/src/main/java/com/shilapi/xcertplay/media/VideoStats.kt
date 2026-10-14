@@ -74,7 +74,7 @@ internal class VideoStats(
             (bytes * 8 / 1000 / seconds).toLong(), recoveries,
             touchAvgMs, maxTouchLatencyNs / 1_000_000, touchSamples, TouchLatencyProbe.maxSendNs / 1_000_000,
         ) + decodeSummary()
-        TouchLatencyProbe.maxSendNs = 0
+        TouchLatencyProbe.resetMaxSendNs()
         Log.i(TAG, line)
         windowStartNs = now
         received = 0; rendered = 0; recoveries = 0; bytes = 0; maxArrivalGapNs = 0

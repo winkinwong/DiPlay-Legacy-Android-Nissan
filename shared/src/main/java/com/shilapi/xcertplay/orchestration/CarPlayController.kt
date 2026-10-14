@@ -209,6 +209,9 @@ class CarPlayController(
     }
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val touchExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val touchQueue = TouchEventQueue<Pair<AirPlaySession, List<AirPlayContact>>>(touchExecutor) {
+        (session, contacts) -> if (!closed && activeSession === session) session.sendTouch(contacts)
+    }
     private val tunnelExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val hostId = UUID.randomUUID().toString().uppercase(Locale.US)
@@ -514,12 +517,16 @@ class CarPlayController(
         }
     }
 
-    fun sendTouch(contacts: List<AirPlayContact>): Boolean {
+    /**
+     * Queues a touch report for the event channel without ever blocking the caller.
+     * Coalescable reports (touch MOVE) replace an older queued move, so a stalled
+     * event-channel write cannot replay a backlog of stale points behind it.
+     */
+    fun sendTouch(contacts: List<AirPlayContact>, coalescable: Boolean = false): Boolean {
         if (closed) return false
         val session = activeSession ?: return false
         return try {
-            touchExecutor.execute { session.sendTouch(contacts) }
-            true
+            touchQueue.enqueue(session to contacts, coalescable)
         } catch (_: Exception) {
             false
         }
@@ -661,6 +668,7 @@ class CarPlayController(
         availabilityPollGeneration.incrementAndGet()
         wirelessGeneration.incrementAndGet()
         permissionPollGeneration += 1
+        touchQueue.clear()
         touchExecutor.shutdownNow()
         tunnelExecutor.shutdownNow()
         val service = vpnService
