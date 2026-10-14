@@ -33,8 +33,8 @@ android {
         multiDexEnabled = true
         multiDexKeepProguard = file("multidex-config.pro")
         testInstrumentationRunner = "com.shilapi.xcertplay.T3LegacyInstrumentation"
-        versionCode = 66
-        versionName = "0.2.46"
+        versionCode = 67
+        versionName = "0.2.46-nissan.1"
 
     }
 
@@ -105,6 +105,23 @@ abstract class VerifyDiPlaySigningTask : DefaultTask() {
     @get:Input abstract val keyAlias: Property<String>
     @get:Input abstract val keyPassword: Property<String>
 
+    /**
+     * The only two release identities this repository may ship with.
+     *
+     * `bca015c0…` is the original DiPlay Private Beta certificate (author's v0.2.21 key): an APK
+     * signed with it installs over an existing DiPlay installation. `584ef03c…` is this
+     * repository's own nissan certificate (key alias `nissan-key0`), used by `0.2.46-nissan.1`
+     * and later local releases; it cannot update an installation signed with the original key, so
+     * such releases require an uninstall first. Any other fingerprint is an accidental key.
+     *
+     * (Kept inside the task class: a script-level property referenced from here would turn this
+     * class into a non-static inner class of the build script and Gradle could not instantiate it.)
+     */
+    private val allowedReleaseFingerprints = setOf(
+        "bca015c0cb43469fee55539b4054ff862671e7b41e6612eee0cb8566d327b7ae",
+        "584ef03c827992caee27356e220800dbd30b23e38842eacb00dc362d3856baab",
+    )
+
     @TaskAction fun verify() {
         val keyFile = keyStoreFile.orNull?.asFile
         check(keyFile?.isFile == true && keyStorePassword.get().isNotBlank() &&
@@ -127,14 +144,16 @@ abstract class VerifyDiPlaySigningTask : DefaultTask() {
         val cert = store.getCertificate(alias) ?: throw GradleException("Release signing certificate not found")
         val fingerprint = MessageDigest.getInstance("SHA-256")
             .digest(cert.encoded).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-        check(fingerprint.equals("bca015c0cb43469fee55539b4054ff862671e7b41e6612eee0cb8566d327b7ae", true)) {
-            "Release certificate differs from v0.2.21; refusing to create an update-incompatible APK."
+        check(fingerprint.lowercase() in allowedReleaseFingerprints) {
+            "Release certificate $fingerprint is neither the original v0.2.21 DiPlay certificate " +
+                "nor this repository's nissan certificate; refusing to create an update-incompatible APK."
         }
     }
 }
+
 val verifyReleaseSigningIdentity by tasks.registering(VerifyDiPlaySigningTask::class) {
     group = "verification"
-    description = "Validate the original DiPlay release certificate before any release APK is signed."
+    description = "Validate a known release certificate (original DiPlay or this repository's nissan key) before any release APK is signed."
     keyStoreFile.set(layout.file(providers.provider { android.signingConfigs.getByName("release").storeFile!! }))
     val localKeystore = rootProject.file("release-signing.jks").takeIf { it.isFile }
         ?: rootProject.file("release-signing.keystore").takeIf { it.isFile }

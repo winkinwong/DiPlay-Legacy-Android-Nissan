@@ -1,4 +1,4 @@
-﻿name: Verify DiPlay Release Signature
+name: Verify DiPlay Release Signature
 
 on:
   release:
@@ -41,17 +41,26 @@ jobs:
             echo "::error::Expected exactly one release APK, got $count"
             exit 1
           fi
-      - name: Verify signature against v0.2.21 identity
+      - name: Verify signature against a known release identity
         env:
-          EXPECTED_SHA256: bca015c0cb43469fee55539b4054ff862671e7b41e6612eee0cb8566d327b7ae
+          # bca015c0…: the original DiPlay Private Beta certificate (author's v0.2.21 key),
+          # whose APKs install over an existing DiPlay installation.
+          # 584ef03c…: this repository's own nissan certificate (alias nissan-key0), used by
+          # 0.2.46-nissan.1 and later local releases; those APKs require an uninstall first.
+          ORIGINAL_SHA256: bca015c0cb43469fee55539b4054ff862671e7b41e6612eee0cb8566d327b7ae
+          NISSAN_SHA256: 584ef03c827992caee27356e220800dbd30b23e38842eacb00dc362d3856baab
         run: |
           set -euo pipefail
           apk=$(find release-apk -maxdepth 1 -type f -name '*.apk' -print -quit)
           signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$signer" verify --min-sdk-version 19 --print-certs "$apk" > certs.txt
           actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' certs.txt | head -1 | tr -d '\r' | tr '[:upper:]' '[:lower:]')
-          if [[ "$actual" != "$EXPECTED_SHA256" ]]; then
-            echo "::error::Release APK signing certificate differs from v0.2.21. Do not publish as an in-place upgrade."
+          if [[ "$actual" != "$ORIGINAL_SHA256" && "$actual" != "$NISSAN_SHA256" ]]; then
+            echo "::error::Release APK signing certificate is neither the original v0.2.21 identity nor this repository's nissan identity. Do not publish as an in-place upgrade."
             exit 1
           fi
-          echo "Release certificate matches v0.2.21."
+          if [[ "$actual" == "$NISSAN_SHA256" ]]; then
+            echo "Release certificate is this repository's nissan identity; the APK cannot install over an original-key installation."
+          else
+            echo "Release certificate matches v0.2.21."
+          fi

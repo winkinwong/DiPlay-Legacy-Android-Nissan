@@ -1,4 +1,4 @@
-﻿# Release signing compatibility / 正式包签名兼容性
+# Release signing compatibility / 正式包签名兼容性
 
 ## Baseline / 基准证书
 
@@ -9,6 +9,24 @@ The v0.2.21 public APK uses the original DiPlay Private Beta signing certificate
 v0.2.30 and v0.2.31 were signed with a different Android Debug certificate. As a result, Android reports `INSTALL_FAILED_UPDATE_INCOMPATIBLE` when attempting to update installations signed with the v0.2.21 certificate.
 
 v0.2.21 公开包使用上面的原始 DiPlay 签名。v0.2.30、v0.2.31 使用了不同的 Android Debug 证书，不能覆盖安装旧签名版本。
+
+## This repository's nissan certificate / 本仓库的 nissan 证书
+
+`:mobile:verifyReleaseSigningIdentity` accepts exactly two certificates: the original one above,
+and this repository's own nissan certificate
+`584ef03c827992caee27356e220800dbd30b23e38842eacb00dc362d3856baab`
+(key alias `nissan-key0`), used by `0.2.46-nissan.1` and later local releases. Any third
+certificate still stops the build.
+
+`:mobile:verifyReleaseSigningIdentity` 只接受两张证书：上面的原作者证书，以及本仓库自己的 nissan
+证书（别名 `nissan-key0`），用于 `0.2.46-nissan.1` 及之后的本地发布；第三张证书仍会让构建失败。
+
+An APK signed with the nissan certificate **cannot** install over an installation signed with the
+original key, and the reverse is also true. The driver must uninstall the old DiPlay build first,
+which loses its saved settings and iPhone pairing — say so before handing out the APK.
+
+用 nissan 证书签名的包**不能覆盖**原签名的安装，反之亦然。发包前必须先说明：需在车机上卸载旧版，
+已保存的设置与 iPhone 配对会一并丢失。
 
 ## Signing a compatible Release / 构建兼容升级包
 
