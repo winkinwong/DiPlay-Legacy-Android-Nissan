@@ -1409,9 +1409,6 @@ private class AudioRenderer(
                 AudioCodecKind.OPUS -> configureCodec(MediaFormat.MIMETYPE_AUDIO_OPUS)
                 AudioCodecKind.LPCM -> Unit
             }
-            createTrack()
-            diagnosticStage = "focus"
-            requestAudioFocus()
             while (running) {
                 diagnosticStage = "packet"
                 queue.poll(AUDIO_POLL_MILLIS, TimeUnit.MILLISECONDS)?.let(::handle)
@@ -1620,6 +1617,17 @@ private class AudioRenderer(
                 "streamOverride=$streamOverride " +
                 "focus=${if (audioFocusEnabled) "on" else "off"}",
         )
+    }
+
+    /** Builds the AudioTrack on demand and acquires audio focus for it. */
+    private fun buildTrack(): AudioTrack? {
+        createTrack()
+        val built = track
+        if (built != null) {
+            diagnosticStage = "focus"
+            requestAudioFocus()
+        }
+        return built
     }
 
     /** 0 uses usage-based routing; 1–20 attempt legacy stream types supported by the head unit. */
@@ -1908,7 +1916,11 @@ private class AudioRenderer(
     }
 
     private fun writePcm(data: ByteArray, offset: Int = 0, length: Int = data.size) {
-        val track = track ?: return
+        // The AudioTrack is built on the first PCM write, not at stream start:
+        // a stream that never carries PCM (Siri speech recognition on NTDA3)
+        // must not hold a created-but-silent track on the legacy stream — that
+        // wedges the whole head-unit output until a routing change resets it.
+        val track = track ?: buildTrack() ?: return
         diagnosticStage = "track-write"
         if (!firstPcmLogged && length > 0) {
             firstPcmLogged = true
