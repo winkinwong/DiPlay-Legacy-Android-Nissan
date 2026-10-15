@@ -2,6 +2,8 @@ package com.shilapi.xcertplay
 
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.usb.UsbManager
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -10,6 +12,11 @@ import javax.net.ssl.SSLContext
 
 /** Read-only diagnostic: never logs identities, network addresses, credentials or USB serials. */
 internal object LegacyConnectionProbe {
+
+    private const val ANW_PHONE_LINK_PACKAGE = "com.anwsdk.service"
+    private const val ANW_PHONE_LINK_ACTION = "com.anwsdk.service.AnwPhoneLink"
+    private const val HSAE_BLUETOOTH_SERVICE_PACKAGE = "com.hsae.bluetoothservice"
+
     fun report(context: Context): String = buildString {
         appendLine("Android API=${Build.VERSION.SDK_INT} release=${Build.VERSION.RELEASE}")
         appendLine(runCatching {
@@ -46,7 +53,32 @@ internal object LegacyConnectionProbe {
                 "hybridSupported=${hybrid.isSupported()} hybridEnabled=${hybrid.isEnabled()} " +
                 "hybridAdapter=${hybrid.getAdapterName()}"
         }.getOrElse { "Bluetooth probe failed=${it.javaClass.simpleName}" })
+        appendLine(runCatching { vendorBtServicesLine(context.packageManager) }
+            .getOrElse { "Vendor BT service probe failed=${it.javaClass.simpleName}" })
     }
+
+    /**
+     * Vendor Bluetooth stack availability, as booleans only. The Nissan/HSAE
+     * wireless CarPlay fallback rides the MCU's own Bluetooth firmware through
+     * the vendor AIDL service (IAnwPhoneLink), which the framework-level
+     * probe above cannot see: a head unit can report no framework adapter
+     * yet still host the vendor service. Resolution count > 0 means the
+     * AnwPhoneLink service resolves for binding; the HSAE line reports
+     * package presence of the sibling HSAE Bluetooth service.
+     */
+    internal fun vendorBtServicesLine(packageManager: PackageManager): String {
+        val anwResolved = runCatching {
+            packageManager.queryIntentServices(
+                Intent(ANW_PHONE_LINK_ACTION).setPackage(ANW_PHONE_LINK_PACKAGE),
+                0,
+            ).size
+        }.getOrDefault(-1)
+        return "Vendor BT services anwPhoneLinkResolved=$anwResolved " +
+            "hsaeBluetoothService=${packagePresent(packageManager, HSAE_BLUETOOTH_SERVICE_PACKAGE)}"
+    }
+
+    private fun packagePresent(packageManager: PackageManager, name: String): Boolean =
+        runCatching { packageManager.getPackageInfo(name, 0) != null }.getOrDefault(false)
 
     fun log(context: Context) {
         report(context).lineSequence().forEach { if (it.isNotBlank()) Log.i("DiPlayLegacyProbe", it) }

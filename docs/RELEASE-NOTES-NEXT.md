@@ -15,3 +15,8 @@ No unreleased changes are recorded yet. Add future unreleased changes here.
 - 诊断修正：`TouchLatencyProbe` 的 `touchSendMax` 统计改用原子累计，多线程下数字可信。
 
 Changes that were previously listed here shipped in [0.2.46-t32.1 release notes](RELEASE-NOTES-0.2.46-t32.1.md).
+
+## Unreleased (v0.2.46-t32.2+)
+- `diagnostics`: 连接诊断新增 `Vendor BT services anwPhoneLinkResolved=N hsaeBluetoothService=bool` 行——
+  探测航盛/日产 MCU 私有蓝牙服务（com.anwsdk.service 可绑定数 / com.hsae.bluetoothservice 存在性），
+  用于判断无线 CarPlay 的 MCU 蓝牙回落路径在车机上是否可行（纯布尔，不含地址或身份信息）。
