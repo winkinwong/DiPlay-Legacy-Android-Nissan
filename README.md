@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-> **Third-party listing:** This build is listed in the [DiPlay official third-party versions directory](https://diplay.org/community/).
+> **Third-party listing:** This build is listed in the third-party versions directory on the [DiPlay official website](https://diplay.org).
 
 > **This repository is the X-Trail (chassis code T32) head-unit optimization build.**
 > Its verification and optimization target is the **Nissan X-Trail (奇骏, chassis T32)**: tested on a **2020 X-Trail** whose head unit is a
