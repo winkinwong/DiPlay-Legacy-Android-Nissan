@@ -196,6 +196,17 @@ class CarPlayVpnService : VpnService() {
             // address on an interface. Falls back to the scopeless address when the scope
             // cannot be resolved, preserving today's behavior.
             val scopedAddress = AirPlaySocketBinder.scopedLinkLocal(address)
+            // Diagnostic for the next drive: whether the listener bind carries
+            // the TUN interface's scope id (what the kernel matches inbound
+            // SYNs against) or fell back to the scopeless address, where the
+            // issue #133 silent-drop can happen.
+            val bindScopeId = (scopedAddress as? Inet6Address)?.scopeId ?: 0
+            runCatching {
+                listener.onDebugLog(
+                    "wired airplay bind=${scopedAddress.hostAddress} scopeId=$bindScopeId " +
+                        "mode=${if (bindScopeId > 0) "scoped" else "scopeless-fallback"}",
+                )
+            }
             startAirPlayServer(
                 generation,
                 AirPlayAttachment(scopedAddress, config, identity, pairings, mfi, listener, media),

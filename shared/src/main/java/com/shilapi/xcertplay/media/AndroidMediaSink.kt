@@ -775,6 +775,8 @@ private class VideoDecoder(
     private var outputSurface: Surface? = surface
     private var parking: ParkingOutput? = null
     private var lastConfig: VideoJob.Config? = null
+    /** nanoTime when the current decoder finished (re)configuring; 0 when none runs. */
+    private var decoderReadyNanos = 0L
     private var renderedFrameLogged = false
     private var submittedFrameLogged = false
     private var duplicateConfigLogged = false
@@ -849,7 +851,8 @@ private class VideoDecoder(
                     when (job) {
                         is VideoJob.Config -> configureDecoder(job)
                         is VideoJob.Frame -> {
-                            if (System.nanoTime() - job.receivedNs > MAX_FRAME_AGE_NS) {
+                            val ageNs = System.nanoTime() - job.receivedNs
+                            if (shouldRecoverOnFrameAge(ageNs, System.nanoTime(), decoderReadyNanos)) {
                                 queue.discardFrames()
                                 recover("video backlog exceeded 250 ms")
                             } else feed(job.nalus, localTimeOf(job))
@@ -945,6 +948,7 @@ private class VideoDecoder(
                 TAG,
                 "video decoder configured name=${next.name} mime=$mime size=${width}x$height",
             )
+            decoderReadyNanos = System.nanoTime()
         }
     }
 
@@ -1234,6 +1238,7 @@ private class VideoDecoder(
     private fun releaseDecoder() {
         val codec = decoder
         decoder = null
+        decoderReadyNanos = 0L
         if (codec != null) {
             try {
                 codec.stop()
@@ -1252,7 +1257,6 @@ private class VideoDecoder(
         const val TAG = "xcertplay-usb"
         const val MAX_INPUT_SIZE = 8 * 1024 * 1024
         const val INPUT_TIMEOUT_US = 10_000L
-        const val MAX_FRAME_AGE_NS = 250_000_000L
         // A paced frame more than this ahead is treated as a bad mapping and shown at once.
         const val MAX_PACING_AHEAD_NS = 1_000_000_000L
         // Longer input gaps are a still screen, not decoding work.
@@ -1265,6 +1269,22 @@ private class VideoDecoder(
         val START_CODE = byteArrayOf(0x00, 0x00, 0x00, 0x01)
     }
 }
+
+/**
+ * True when a frame of age [ageNs] should trigger the backlog recovery. A
+ * frame that queued while the decoder was (re)configuring is expected to
+ * be stale: within [STARTUP_GRACE_NS] of the decoder becoming ready such
+ * frames are fed (their presentation time still paces them) instead of
+ * destroying the decoder and waiting for a keyframe.
+ */
+internal fun shouldRecoverOnFrameAge(ageNs: Long, nowNs: Long, decoderReadyNanos: Long): Boolean =
+    ageNs > MAX_FRAME_AGE_NS && nowNs - decoderReadyNanos >= STARTUP_GRACE_NS
+
+internal const val MAX_FRAME_AGE_NS = 250_000_000L
+// Frames that piled up while the decoder was (re)configuring are expected
+// to be stale; destroying a healthy decoder for them costs a full keyframe
+// round-trip (observed as a 1.8 s black gap at stream start on NTDA3).
+internal const val STARTUP_GRACE_NS = 2_000_000_000L
 
 private fun MediaFormat.intOrNull(key: String): Int? =
     if (!containsKey(key)) {

@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import com.shilapi.xcertplay.airplay.AirPlaySession
 import java.io.File
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -84,6 +85,40 @@ class CarPlayHostThemeDiagnosticsTest {
         verify(session, times(1)).setNightMode(false)
         verify(session, times(0)).setNightMode(true)
         assertTrue(logFile.readText().contains("reported=dark applied=light sessionActive=true"))
+    }
+
+    @Test fun themeSyncDuringShutdownIsSkippedInsteadOfCrashing() {
+        // shutdown() terminates the executor while a late onResume can still
+        // hold a session reference. The sync must be skipped, not submitted.
+        val session = mock(AirPlaySession::class.java)
+        setField("activeAirPlaySession", session)
+        setField("shuttingDown", java.util.concurrent.atomic.AtomicBoolean(true))
+        syncDarkMode(ThemeModeDiagnostics.Source.RESUME)
+        val log = logFile.readText()
+        assertTrue(log.contains("sessionActive=true"))
+        assertTrue(!log.contains("THEME_DIAGNOSTIC send"))
+    }
+
+    @Test fun themeSyncOnTerminatedExecutorIsRecordedInsteadOfCrashing() {
+        // The executor is terminated but the activity was not marked
+        // shutting down: the submit must be caught and recorded — the
+        // observed FATAL RejectedExecutionException on resume right
+        // after exiting CarPlay must not come back.
+        val session = mock(AirPlaySession::class.java)
+        setField("activeAirPlaySession", session)
+        val terminated = Executors.newSingleThreadExecutor()
+        terminated.shutdownNow()
+        setField("airPlayCommandExecutor", terminated)
+        syncDarkMode(ThemeModeDiagnostics.Source.RESUME)
+        val log = logFile.readText()
+        assertTrue(log.contains("failureClass=RejectedExecutionException"))
+        verify(session, times(0)).setNightMode(true)
+        verify(session, times(0)).setNightMode(false)
+    }
+
+    private fun syncDarkMode(source: ThemeModeDiagnostics.Source) {
+        activity.javaClass.getDeclaredMethod("syncAirPlayDarkMode", ThemeModeDiagnostics.Source::class.java)
+            .apply { isAccessible = true }.invoke(activity, source)
     }
 
     private fun refresh(mode: Int, source: ThemeModeDiagnostics.Source) {

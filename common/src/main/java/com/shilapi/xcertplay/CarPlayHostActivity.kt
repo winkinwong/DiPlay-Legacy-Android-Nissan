@@ -109,6 +109,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
 
@@ -4279,11 +4280,15 @@ class CarPlayHostActivity : ComponentActivity() {
         val session = activeAirPlaySession
         val night = nightModeController.night
         darkMode = night
-        if (session == null) {
-            appendLog("THEME_DIAGNOSTIC request source=${source.label} applied=${if (night) "dark" else "light"} sessionActive=false")
+        if (session == null || shuttingDown.get()) {
+            appendLog(
+                "THEME_DIAGNOSTIC request source=${source.label} applied=${if (night) "dark" else "light"} " +
+                    "sessionActive=${session != null}",
+            )
             return
         }
-        airPlayCommandExecutor.execute {
+        try {
+            airPlayCommandExecutor.execute {
             try {
                 val sent = session.setNightMode(night)
                 // A successful write does not prove the iPhone changed its appearance.
@@ -4301,6 +4306,17 @@ class CarPlayHostActivity : ComponentActivity() {
                 appendLog("THEME_DIAGNOSTIC send source=${source.label} failureClass=$failureClass")
                 Log.w(TAG, "Could not send AirPlay dark mode update", error)
             }
+            }
+        } catch (error: RejectedExecutionException) {
+            // shutdown() terminates the executor on its teardown thread while a
+            // late onResume can still hold a session reference; submitting there
+            // threw RejectedExecutionException and crashed the whole host
+            // activity (observed FATAL on resume right after exiting CarPlay).
+            // The session is going away, so skip the sync instead of crashing.
+            appendLog(
+                "THEME_DIAGNOSTIC send source=${source.label} failureClass=RejectedExecutionException",
+            )
+            Log.w(TAG, "AirPlay dark mode update rejected; executor terminated", error)
         }
     }
 

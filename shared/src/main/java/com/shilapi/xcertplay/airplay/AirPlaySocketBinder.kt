@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.airplay
 
 import java.io.Closeable
+import java.io.File
 import java.io.IOException
 import java.net.DatagramSocket
 import java.net.Inet4Address
@@ -51,6 +52,16 @@ internal object AirPlaySocketBinder {
     /** Interface index owning a link-local address; 0 when it cannot be determined. */
     private fun linkScopeOf(address: Inet6Address): Int {
         if (address.scopeId != 0) return address.scopeId
+        // Kernel truth first: /proc/net/if_inet6 maps every kernel IPv6
+        // address to its interface index. Java's NetworkInterface view can
+        // stay stale after a VPN TUN is destroyed and recreated between
+        // reconnect attempts, which leaves the AirPlay listener scopeless
+        // and inbound SYNs silently dropped (the issue #133 mechanism).
+        // The proc file is read straight from the kernel, immune to that cache.
+        runCatching { File(PROC_INET6).readLines() }
+            .getOrNull()
+            ?.let { procIfIndex(it, address) }
+            ?.let { return it }
         runCatching {
             NetworkInterface.getByInetAddress(address)?.index?.takeIf { it > 0 }
         }.getOrNull()?.let { return it }
@@ -61,6 +72,24 @@ internal object AirPlaySocketBinder {
                 ?.index?.takeIf { it > 0 }
         }.getOrNull()?.let { return it }
         return 0
+    }
+
+    /**
+     * Parses `/proc/net/if_inet6` rows ("Ifindex IPv6Address PrefixLen Scope
+     * Flags Iface") for the interface index owning [address]; null when the
+     * kernel has no such address. Pure so the parsing is unit-testable
+     * without a device.
+     */
+    internal fun procIfIndex(lines: List<String>, address: Inet6Address): Int? {
+        val target = address.address.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+        for (line in lines) {
+            val columns = line.trim().split(WHITESPACE)
+            if (columns.size < 2) continue
+            if (columns[1].equals(target, ignoreCase = true)) {
+                columns[0].toIntOrNull()?.let { if (it > 0) return it }
+            }
+        }
+        return null
     }
 
     fun datagram(reference: InetAddress?, stage: String): DatagramSocket =
@@ -169,6 +198,8 @@ internal object AirPlaySocketBinder {
 
     private val random = Random()
     private const val EXPLICIT_BIND_ATTEMPTS = 16
+    private const val PROC_INET6 = "/proc/net/if_inet6"
+    private val WHITESPACE = Regex("\\s+")
 }
 
 internal fun isAddressInUse(error: Throwable): Boolean =

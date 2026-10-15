@@ -65,4 +65,26 @@ class Ipv6NcmBridgeDiagnosticTest {
         val summary = ipv6Packet(1, ByteArray(8)).diagnosticSummary(0)
         assertEquals("bytes=48 next=1", summary)
     }
+
+    @Test
+    fun destinationMatchIsReportedWithoutLeakingTheAddress() {
+        val packet = ipv6Packet(6, ByteArray(20))
+        val hostDestination = packet.copyOfRange(8, 24)
+        assertTrue(packet.destinationIsHost(0, hostDestination))
+        // The same packet addressed elsewhere must not match.
+        val other = ipv6Packet(6, ByteArray(20)).also { it[12] = (it[12] + 1).toByte() }
+        assertFalse(other.destinationIsHost(0, hostDestination))
+    }
+
+    @Test
+    fun destinationMatchHonoursOffsetAndTruncation() {
+        val host = ByteArray(16) { 0x11.toByte() }
+        val header = ByteArray(40)
+        host.copyInto(header, 8)
+        // A 14-byte Ethernet-style prefix before the IPv6 header.
+        val packet = ByteArray(14) + header + ByteArray(20)
+        assertTrue(packet.destinationIsHost(14, host))
+        assertFalse(ByteArray(20).destinationIsHost(0, host))
+        assertFalse(ByteArray(60).destinationIsHost(0, ByteArray(8)))
+    }
 }

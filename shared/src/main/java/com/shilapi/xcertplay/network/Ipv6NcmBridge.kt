@@ -58,6 +58,8 @@ class Ipv6NcmBridge(
      * TCP packets draw from this reserved budget first, keeping SYN visibility.
      */
     private var reportTcpBudget = 8
+    /** Outbound TCP (e.g. SYN-ACK) visibility in the exported report. */
+    private var reportOutboundTcpBudget = 8
     private var outboundLogBudget = 24
     @Volatile
     private var lastNaTimeNanos = 0L
@@ -144,8 +146,15 @@ class Ipv6NcmBridge(
                 if (inboundNextHeader == 6 && reportTcpBudget > 0) {
                     // Issue #131: TCP packets draw from the reserved budget so a SYN
                     // arriving after StartSession stays visible in the exported report.
+                    // dstHost shows whether the iPhone is connecting to the address
+                    // this TUN owns (a boolean only — addresses stay redacted).
                     reportTcpBudget--
-                    runCatching { onDebugLog("ncm inbound diag ${frame.diagnosticSummary(ipv6.payloadOffset)}") }
+                    runCatching {
+                        onDebugLog(
+                            "ncm inbound diag ${frame.diagnosticSummary(ipv6.payloadOffset)}" +
+                                " dstHost=${frame.destinationIsHost(ipv6.payloadOffset, hostLinkLocalBytes)}",
+                        )
+                    }
                 } else if (reportInboundBudget > 0) {
                     reportInboundBudget--
                     runCatching { onDebugLog("ncm inbound diag ${frame.diagnosticSummary(ipv6.payloadOffset)}") }
@@ -183,6 +192,17 @@ class Ipv6NcmBridge(
                 if (outboundLogBudget > 0) {
                     outboundLogBudget--
                     Log.i(TAG, "ncm outbound ${ipv6.summary(0)}")
+                }
+                // A TCP packet leaving the TUN (e.g. the SYN-ACK that
+                // completes the AirPlay handshake) is only visible in
+                // logcat today. Mirroring a redacted summary into the
+                // exported report lets the next drive distinguish "the
+                // kernel answered the iPhone's SYN" from "the SYN was
+                // silently dropped" without addresses.
+                val outboundNextHeader = if (ipv6.size >= 7) (ipv6[6].toInt() and 0xff) else -1
+                if (outboundNextHeader == 6 && reportOutboundTcpBudget > 0) {
+                    reportOutboundTcpBudget--
+                    runCatching { onDebugLog("ncm outbound diag ${ipv6.diagnosticSummary(0)}") }
                 }
                 val multicastMac = EthernetIpv6Codec.multicastDestinationMac(ipv6)
                 val mac = multicastMac ?: peerMac
@@ -306,4 +326,16 @@ internal fun ByteArray.diagnosticSummary(offset: Int): String {
         else -> ""
     }
     return "bytes=$payloadBytes next=$nextHeader$detail"
+}
+
+/**
+ * True when the IPv6 packet's destination address equals the host
+ * link-local. Reported as a boolean so the diagnostic report shows
+ * whether the iPhone is connecting to the address this TUN owns
+ * without leaking addresses. [offset] is the IPv6 header start.
+ */
+internal fun ByteArray.destinationIsHost(offset: Int, hostLinkLocal: ByteArray): Boolean {
+    if (size < offset + 24 || hostLinkLocal.size != 16) return false
+    val destination = copyOfRange(offset + 8, offset + 24)
+    return destination.contentEquals(hostLinkLocal)
 }
