@@ -89,6 +89,7 @@ import com.shilapi.xcertplay.transport.IphoneCarPlayConfiguration
 import com.shilapi.xcertplay.transport.IphoneUsbException
 import com.shilapi.xcertplay.transport.IphoneUsbHost
 import com.shilapi.xcertplay.transport.IphoneUsbMatcher
+import com.shilapi.xcertplay.usb.IpodServiceStopper
 import com.shilapi.xcertplay.transport.LinuxI2cTransport
 import com.shilapi.xcertplay.transport.LockdownCarKitClient
 import com.shilapi.xcertplay.transport.LockdownPairingClient
@@ -208,6 +209,12 @@ class CarPlayController(
         )
     }
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    /** Stops the head unit iPod service on iPhone attach; swappable for tests. */
+    internal var ipodServiceStopper: IpodServiceStopper =
+        IpodServiceStopper(
+            backgroundKiller = IpodServiceStopper
+                .ActivityManagerBackgroundKiller(appContext),
+        )
     private val touchExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val touchQueue = TouchEventQueue<Pair<AirPlaySession, List<AirPlayContact>>>(touchExecutor) {
         (session, contacts) -> if (!closed && activeSession === session) session.sendTouch(contacts)
@@ -1885,7 +1892,25 @@ class CarPlayController(
                     "pid=0x${device.productId.toString(16)}",
             )
             availabilityPollGeneration.incrementAndGet()
+            maybeStopIpodService()
             requestIphonePermission(device)
+        }
+    }
+
+    /**
+     * Issue #79-family: on HSAE head units the iPod service claims the
+     * USB interface on every attach and the driver must force-stop it in
+     * system settings before CarPlay connects. When enabled, repeat that
+     * step automatically on the worker pool so the permission request and
+     * the USB open never race a freshly started iPod process.
+     */
+    internal fun maybeStopIpodService() {
+        if (!config.stopIpodOnUsb) return
+        debugLog("ipod guard enabled; stopping ${IpodServiceStopper.IPOD_PACKAGE} on iPhone attach")
+        executor.execute {
+            val plan = ipodServiceStopper.plan(ipodServiceStopper.rootAvailable())
+            val result = ipodServiceStopper.stopWithRetry(appContext, plan)
+            debugLog("ipod guard result=${result.summary}")
         }
     }
 

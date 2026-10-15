@@ -68,6 +68,14 @@ class CarPlayRuntimeConfig(
     val wifiP2pPreferredChannel: Int = WifiP2pChannels.AUTO,
     val existingWifiSsid: String = "",
     val existingWifiPassphrase: String = "",
+    /**
+     * Stop the head unit's iPod service (com.hsae.ipod) when an
+     * iPhone is attached over USB: on HSAE head units the iPod
+     * service claims the USB interface and blocks the CarPlay
+     * connection until it is force-stopped. Off by default; only
+     * head units that show this conflict need it.
+     */
+    val stopIpodOnUsb: Boolean = false,
 ) {
     init {
         require(iphoneDevices.all { it.vendorId == APPLE_VENDOR_ID }) {

@@ -649,6 +649,8 @@
     <string name="car_brand_icon_applied">Применен логотип %1$s</string>
     <string name="settings_car_bluetooth_mac_title">Bluetooth-адрес автомобиля</string>
     <string name="settings_car_bluetooth_mac_subtitle">Сообщает собственный MAC-адрес Bluetooth автомобиля iPhone для правильной маршрутизации звука. Переподключите для применения.</string>
+<string name="settings_stop_ipod_service">Автоостановка службы iPod при USB (экспериментально)</string>
+<string name="settings_stop_ipod_service_summary">Останавляет службу iPod головного устройства при подключении iPhone, чтобы она не заняла USB-порт до CarPlay. Применяется при следующем USB-подключении.</string>
     <string name="settings_car_bluetooth_mac_auto">Авто (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">Не обнаружен</string>
     <string name="settings_car_bluetooth_mac_dialog_title">MAC-адрес Bluetooth автомобиля</string>

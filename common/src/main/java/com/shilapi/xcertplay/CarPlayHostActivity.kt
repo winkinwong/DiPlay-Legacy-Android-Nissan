@@ -188,6 +188,7 @@ class CarPlayHostActivity : ComponentActivity() {
         existingWifiSsid = existingWifiSsid,
         existingWifiPassphrase = existingWifiPassphrase,
         locationReportingEnabled = locationReportingEnabled,
+        stopIpodOnUsb = AirPlayPersistence.loadStopIpodOnUsb(this),
     )
 
     private val vpnConsent =

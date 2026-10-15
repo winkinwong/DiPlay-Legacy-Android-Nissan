@@ -1278,6 +1278,15 @@ class DiPlayActivity : ComponentActivity() {
                 matchButton(12, 60),
             )
             card.addView(label(getString(R.string.settings_car_bluetooth_mac_subtitle), 14, MUTED).apply { setPadding(0, dp(4), 0, 0) })
+            toggle(
+                card,
+                getString(R.string.settings_stop_ipod_service),
+                getString(R.string.settings_stop_ipod_service_summary),
+                AirPlayPersistence.loadStopIpodOnUsb(this),
+            ) { enabled ->
+                AirPlayPersistence.saveStopIpodOnUsb(this, enabled)
+                markReconnectNeeded()
+            }
         }
         filteredSection(content, SettingsSection.DIAGNOSTICS,
             getString(R.string.diagnostics), R.drawable.ic_dp_diagnostics) { card ->

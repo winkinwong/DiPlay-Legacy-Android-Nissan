@@ -94,6 +94,7 @@ object AirPlayPersistence {
     private const val KEY_MAX_DETECTED_WIDTH = "display_max_detected_width"
     private const val KEY_MAX_DETECTED_HEIGHT = "display_max_detected_height"
     private const val KEY_RIGHT_HAND_DRIVE = "right_hand_drive"
+    private const val KEY_STOP_IPOD_ON_USB = "stop_ipod_on_usb"
     private const val KEY_HIDE_TOP_BAR = "hide_top_bar"
     private const val KEY_HIDE_BOTTOM_BAR = "hide_bottom_bar"
     private const val KEY_HARMAN_FULLSCREEN = "harman_fullscreen"
@@ -869,6 +870,16 @@ object AirPlayPersistence {
     fun saveRightHandDrive(context: Context, rightHandDrive: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_RIGHT_HAND_DRIVE, rightHandDrive)
+            .apply()
+    }
+
+    fun loadStopIpodOnUsb(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_STOP_IPOD_ON_USB, false)
+
+    fun saveStopIpodOnUsb(context: Context, stopIpodOnUsb: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_STOP_IPOD_ON_USB, stopIpodOnUsb)
             .apply()
     }
 

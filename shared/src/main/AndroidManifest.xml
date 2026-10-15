@@ -19,6 +19,9 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
+    <!-- IpodServiceStopper: no-root fallback to stop the head unit
+         iPod service that claims the USB interface on iPhone attach. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <uses-feature
         android:name="android.hardware.usb.host"

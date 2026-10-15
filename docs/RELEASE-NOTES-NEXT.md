@@ -20,3 +20,9 @@ Changes that were previously listed here shipped in [0.2.46-t32.1 release notes]
 - `diagnostics`: 连接诊断新增 `Vendor BT services anwPhoneLinkResolved=N hsaeBluetoothService=bool` 行——
   探测航盛/日产 MCU 私有蓝牙服务（com.anwsdk.service 可绑定数 / com.hsae.bluetoothservice 存在性），
   用于判断无线 CarPlay 的 MCU 蓝牙回落路径在车机上是否可行（纯布尔，不含地址或身份信息）。
+## Unreleased (v0.2.46-t32.2+)
+- `connection`: 新增实验性设置「USB 连接时自动停止 iPod 服务」——在发现 iPhone 时
+  自动停止车机 iPod 服务（com.hsae.ipod），解决航盛车机（2020 奇骏 NTDA3 等）上
+  iPod 服务抢占 USB 接口、必须手动强制停止才能连接 CarPlay 的问题。root 车机使用
+  `am force-stop`（可停前台服务），其他车机回退 killBackgroundProcesses；
+  默认关闭，仅在需要的车机上开启。下次 USB 连接生效。

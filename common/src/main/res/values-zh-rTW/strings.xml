@@ -709,6 +709,8 @@
     <string name="car_brand_icon_applied">已套用 %1$s 車標</string>
     <string name="settings_car_bluetooth_mac_title">車機藍牙位址</string>
     <string name="settings_car_bluetooth_mac_subtitle">向 iPhone 宣告車機真實藍牙 MAC 位址以正常路由音訊。重新連線後生效。</string>
+<string name="settings_stop_ipod_service">USB 連線時自動停止 iPod 服務 (實驗性)</string>
+<string name="settings_stop_ipod_service_summary">iPhone 接入 USB 時停止軈機的 iPod 服務，避免它在 CarPlay 之前占用 USB 介面。下次 USB 連線後生效。</string>
     <string name="settings_car_bluetooth_mac_auto">自動探測 (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">未檢測到</string>
     <string name="settings_car_bluetooth_mac_dialog_title">車機藍牙 MAC 位址</string>

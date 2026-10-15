@@ -749,6 +749,8 @@
     <string name="car_brand_icon_applied">Applied %1$s icon</string>
     <string name="settings_car_bluetooth_mac_title">Car Bluetooth address</string>
     <string name="settings_car_bluetooth_mac_subtitle">Declares the car’s native Bluetooth MAC to iPhone for proper audio routing. Reconnect to apply.</string>
+<string name="settings_stop_ipod_service">Auto-stop iPod service on USB (experimental)</string>
+<string name="settings_stop_ipod_service_summary">Stops the head unit’s iPod service when an iPhone is attached, so it cannot claim the USB port before CarPlay. Applies at the next USB connection.</string>
     <string name="settings_car_bluetooth_mac_auto">Auto (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">Not detected</string>
     <string name="settings_car_bluetooth_mac_dialog_title">Car Bluetooth MAC</string>
