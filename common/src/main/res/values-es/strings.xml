@@ -198,6 +198,7 @@
     <string name="finish_setup_save_your_hotspot_details_to_use_this_mode">Finalizar configuración · Guarda los datos de tu punto de acceso para usar este modo.</string>
     <string name="follow_instrument_theme_and_map_card">Seguir el tema del cuadro y la tarjeta del mapa</string>
     <string name="frame_rate">Frecuencia de imágenes</string>
+    <string name="frame_rate_hint">Si el vídeo se entrecorta en esta unidad, baja la frecuencia de fotogramas: el decodificador de hardware debe renderizar cada fotograma dentro de su presupuesto (41 ms a 24 fps, 33 ms a 30 fps).</string>
     <string name="full_screen">Pantalla completa</string>
     <string name="adapt_pip_resolution">Adaptar resolución en multiventana</string>
     <string name="adapt_pip_resolution_description">Vuelva a conectar CarPlay para adaptar la resolución al aspecto de multiventana o PiP. Déjelo desactivado para un escalado instantáneo por GPU sin demora.</string>
@@ -650,7 +651,7 @@
     <string name="settings_car_bluetooth_mac_title">Dirección Bluetooth del coche</string>
     <string name="settings_car_bluetooth_mac_subtitle">Declara la MAC de Bluetooth nativa del coche al iPhone para el enrutamiento de audio adecuado. Reconecta para aplicar.</string>
 <string name="settings_stop_ipod_service">Detener el servicio iPod al conectar USB (experimental)</string>
-<string name="settings_stop_ipod_service_summary">Detiene el servicio iPod de la unidad cuando se conecta un iPhone, para que no reclame el puerto USB antes de CarPlay. Se aplica en la próxima conexión USB.</string>
+<string name="settings_stop_ipod_service_summary">Detiene el servicio iPod de la unidad cuando se conecta un iPhone, para que no reclame el puerto USB antes de CarPlay. La detención automática solo funciona en unidades con root; en las demás, detenga el servicio iPod manualmente en los ajustes del sistema si CarPlay no se conecta. Se aplica en la próxima conexión USB.</string>
     <string name="settings_car_bluetooth_mac_auto">Automático (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">No detectado</string>
     <string name="settings_car_bluetooth_mac_dialog_title">MAC de Bluetooth del coche</string>

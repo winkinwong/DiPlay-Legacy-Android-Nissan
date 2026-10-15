@@ -57,8 +57,12 @@ internal class VideoStats(
         if (decodeSamples == 0) return ""
         val sorted = decodeMicros.copyOf(decodeSamples).also { it.sort() }
         fun percentileMs(p: Int) = sorted[(decodeSamples - 1) * p / 100] / 1000
+        val p50 = percentileMs(50)
         val delay = if (pacingDelayNanos > 0) " delay=%dms".format(pacingDelayNanos / 1_000_000) else ""
-        return " decode p50=%dms p90=%dms late=%d".format(percentileMs(50), percentileMs(90), late) + delay
+        // A decoder slower than the 24 fps budget cannot keep ANY frame rate
+        // smooth; the stats line tells the driver which knob to turn next.
+        val hint = if (p50 > DECODE_BUDGET_MILLIS_24FPS) " hint=decoder-too-slow-lower-fps" else ""
+        return " decode p50=%dms p90=%dms late=%d".format(p50, percentileMs(90), late) + delay + hint
     }
 
     @Synchronized fun logIfDue(): String? {
@@ -87,5 +91,7 @@ internal class VideoStats(
         const val TAG = "DiPlay-VideoStats"
         const val WINDOW_NS = 5_000_000_000L
         const val IDLE_GAP_NS = 2_000_000_000L // longer gaps are a static screen, not lag
+        /** 24 fps frame budget: a slower decoder stutters at every offered frame rate. */
+        private const val DECODE_BUDGET_MILLIS_24FPS = 40
     }
 }

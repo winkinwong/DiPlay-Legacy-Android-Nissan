@@ -1198,12 +1198,16 @@ class CarPlayController(
             debugLog("wireless bring-up generation=$generation starting")
             // Issue #79: without a Bluetooth adapter, wireless CarPlay is impossible —
             // iPhone needs Bluetooth for discovery/pairing. Fail fast instead of waiting
-            // 60s for a Wi-Fi connection that will never come.
+            // 60s for a Wi-Fi connection that will never come. On this Nissan MCU
+            // family the vendor Bluetooth stack is hidden from the Android framework
+            // and AnwPhoneLink only reports the paired phone list over USB, so no
+            // software path to the wireless discovery handshake exists here.
             val btAdapter = BluetoothAdapter.getDefaultAdapter()
             if (btAdapter == null) {
                 throw IOException(
-                    "No Bluetooth adapter on this head unit; wireless CarPlay requires Bluetooth " +
-                        "for iPhone discovery. Use wired USB instead."
+                    "This head unit's Bluetooth stack is hidden from Android, so wireless " +
+                        "CarPlay discovery cannot run here (AnwPhoneLink only lists paired " +
+                        "phones over USB). Use wired USB CarPlay instead."
                 )
             }
             // Issue #117: adapter present but switched off — the iPhone can never discover

@@ -198,6 +198,7 @@
     <string name="finish_setup_save_your_hotspot_details_to_use_this_mode">完成設定 · 儲存熱點資訊以使用此模式。</string>
     <string name="follow_instrument_theme_and_map_card">跟隨儀表板主題和地圖卡片</string>
     <string name="frame_rate">影格率</string>
+    <string name="frame_rate_hint">如果车機播放影片卡領，請降低帧率：硬體解碼器必須在每帧預算內完成渲染（24 fps 為 41 毫秒，30 fps 為 33 毫秒）。</string>
     <string name="full_screen">全螢幕顯示</string>
     <string name="adapt_pip_resolution">畫中畫與分割畫面自適應</string>
     <string name="adapt_pip_resolution_description">切換至桌面畫中畫或分割畫面浮動小視窗時，自動斷開重連以適應視窗解析度，消除上下左右黑邊。保持關閉可實現 0 毫秒 GPU 秒級自適應且不重連。</string>
@@ -710,7 +711,7 @@
     <string name="settings_car_bluetooth_mac_title">車機藍牙位址</string>
     <string name="settings_car_bluetooth_mac_subtitle">向 iPhone 宣告車機真實藍牙 MAC 位址以正常路由音訊。重新連線後生效。</string>
 <string name="settings_stop_ipod_service">USB 連線時自動停止 iPod 服務 (實驗性)</string>
-<string name="settings_stop_ipod_service_summary">iPhone 接入 USB 時停止軈機的 iPod 服務，避免它在 CarPlay 之前占用 USB 介面。下次 USB 連線後生效。</string>
+<string name="settings_stop_ipod_service_summary">iPhone 接入 USB 時停止车機的 iPod 服務，避免它在 CarPlay 之前占用 USB 介面。自動停止僅在已 root 的车機上生效；其他车機如 CarPlay 無法連接，請到车機系統設定中手動停止 iPod 服務。下次 USB 連接後生效。</string>
     <string name="settings_car_bluetooth_mac_auto">自動探測 (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">未檢測到</string>
     <string name="settings_car_bluetooth_mac_dialog_title">車機藍牙 MAC 位址</string>

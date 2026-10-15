@@ -198,6 +198,7 @@
     <string name="finish_setup_save_your_hotspot_details_to_use_this_mode">Завершить настройку · Сохраните данные точки доступа, чтобы использовать этот режим.</string>
     <string name="follow_instrument_theme_and_map_card">Следовать теме приборов и карточке карты</string>
     <string name="frame_rate">Частота кадров</string>
+    <string name="frame_rate_hint">Если видео на этом устройстве подтормаживает, понизьте частоту кадров: аппаратный декодер должен обрабатывать каждый кадр в пределах бюджета (41 мс при 24 fps, 33 мс при 30 fps).</string>
     <string name="full_screen">Полный экран</string>
     <string name="adapt_pip_resolution">Адаптация разрешения в многооконном режиме</string>
     <string name="adapt_pip_resolution_description">Переподключает CarPlay для адаптации разрешения к пропорциям окна или PiP. Оставьте выключенным для мгновенного аппаратного масштабирования GPU.</string>
@@ -650,7 +651,7 @@
     <string name="settings_car_bluetooth_mac_title">Bluetooth-адрес автомобиля</string>
     <string name="settings_car_bluetooth_mac_subtitle">Сообщает собственный MAC-адрес Bluetooth автомобиля iPhone для правильной маршрутизации звука. Переподключите для применения.</string>
 <string name="settings_stop_ipod_service">Автоостановка службы iPod при USB (экспериментально)</string>
-<string name="settings_stop_ipod_service_summary">Останавляет службу iPod головного устройства при подключении iPhone, чтобы она не заняла USB-порт до CarPlay. Применяется при следующем USB-подключении.</string>
+<string name="settings_stop_ipod_service_summary">Останавляет службу iPod головного устройства при подключении iPhone, чтобы она не занимала USB-порт до CarPlay. Автоматическая остановка работает только на устройствах с root; на остальных остановите службу iPod вручную в системных настройках, если CarPlay не подключается. Применяется при следующем подключении USB.</string>
     <string name="settings_car_bluetooth_mac_auto">Авто (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">Не обнаружен</string>
     <string name="settings_car_bluetooth_mac_dialog_title">MAC-адрес Bluetooth автомобиля</string>

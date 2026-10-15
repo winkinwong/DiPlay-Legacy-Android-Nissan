@@ -198,6 +198,7 @@
     <string name="finish_setup_save_your_hotspot_details_to_use_this_mode">إنهاء الإعداد · احفظ بيانات نقطة الاتصال لاستخدام هذا الوضع.</string>
     <string name="follow_instrument_theme_and_map_card">اتبع سمة لوحة العدادات وبطاقة الخريطة</string>
     <string name="frame_rate">معدل الإطارات</string>
+    <string name="frame_rate_hint">إذا تقطع الفيديو على هذا الجهاز， انخفض معدل الإطارات: يجب على مفكك الترميز المادي أن يعرض كل إطار ضمن ميزانيته (41 مللي ثانية عند 24 fps， 33 مللي ثانية عند 30 fps).</string>
     <string name="full_screen">ملء الشاشة</string>
     <string name="adapt_pip_resolution">تكييف دقة النوافذ المتعددة</string>
     <string name="adapt_pip_resolution_description">إعادة توصيل CarPlay لتكييف دقة البث مع نسبة العرض إلى الارتفاع للنوافذ المتعددة أو صورة داخل صورة. اتركه معطلاً للتحجيم الفوري لوحدة معالجة الرسومات بدون تأخير.</string>
@@ -650,7 +651,7 @@
     <string name="settings_car_bluetooth_mac_title">عنوان بلوتوث السيارة</string>
     <string name="settings_car_bluetooth_mac_subtitle">يعلن عنوان MAC لبلوتوث السيارة لـ iPhone لتوجيه الصوت بشكل سليم. أعد الاتصال للتطبيق.</string>
 <string name="settings_stop_ipod_service">إيقاف خدمة iPod تلقائيًا عند توصيل USB (تجريبي)</string>
-<string name="settings_stop_ipod_service_summary">يقف خدمة iPod في وحدة العرض عند توصيل iPhone， حتى لا تستولي على منفذ USB قبل CarPlay. يسري عند اتصال USB القادم.</string>
+<string name="settings_stop_ipod_service_summary">يوقف خدمة iPod في الجهاز عند توصل iPhone， حتى لا يستولي على منفذ USB قبل CarPlay. الإيقاف التلقائي يعمل فقط على الأجهزة الممكينة (root)； على الأجهزة الأخرى， أوقف خدمة iPod يودياً من إعدادات الننام إذه لم يتصل CarPlay. يكون عند الاتصال التالي بمنفذ USB.</string>
     <string name="settings_car_bluetooth_mac_auto">تلقائي (%1$s)</string>
     <string name="settings_car_bluetooth_mac_not_detected">لم يتم اكتشافه</string>
     <string name="settings_car_bluetooth_mac_dialog_title">عنوان MAC لبلوتوث السيارة</string>

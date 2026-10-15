@@ -1408,6 +1408,10 @@ class DiPlayActivity : ComponentActivity() {
             ), when (AirPlayPersistence.loadFps(this)) {
                 15 -> 0; 45 -> 2; 60 -> 3; else -> 1
             }) { AirPlayPersistence.saveFps(this, listOf(15, 30, 45, 60)[it]) }
+            // Field report 2026-10-15: a head unit whose hardware decoder
+            // cannot keep the frame budget stutters at every offered rate;
+            // point the driver at the knob before they blame the connection.
+            card.addView(label(getString(R.string.frame_rate_hint), 14, MUTED))
             carPlayDockControl(card)
             addSystemBarControls(
                 hideTopBar = AirPlayPersistence.loadHideTopBar(this),
