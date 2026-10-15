@@ -8,7 +8,7 @@
 > 主要验证与优化对象是 **日产奇骏**——实测机型为 **2020 款奇骏**，车机为
 > **HSAE 航盛 `NTDA3_BOARD_S02` / Android 4.4.3 (API 19) / 32 位 freescale sabresd（`NTDA3_P350`）**，
 > 搭配 iPhone（实测 iPhone 14 Pro / iOS 27.0）通过 USB 有线连接 CarPlay。
-> 本仓库围绕该机型持续优化，针对奇骏的改动见 [未发布改动](docs/RELEASE-NOTES-NEXT.md) 与 [CHANGELOG](CHANGELOG.md)。
+> 本仓库围绕该车型持续优化，针对奇骏的改动已随 **v0.2.46-t32.2** 发布（逐项见 [更新说明](docs/RELEASE-NOTES-NEXT.md) 与 [CHANGELOG](CHANGELOG.md)）。
 >
 > 本项目基于开源项目 [shihabal3amri/DiPlay](https://github.com/shihabal3amri/DiPlay) 进行深度兼容与重构。
 >
@@ -22,17 +22,21 @@
 
 为**日产奇骏**及其他兼容的老旧 Android 车机提供有线（USB）及无线 CarPlay 互联支持，内置熟悉的 DiAuto 风格界面。独立应用包名：`com.shihab.diplay`。上游对比亚迪等车型的适配随代码保留，但**本仓库的验证与优化以日产奇骏为准**。
 
+**最新版本：v0.2.46-t32.2**（versionCode 69，2026-10-15 发布）
+- 下载：[Release](https://github.com/winkinwong/DiPlay-Legacy-Android-T32/releases/tag/v0.2.46-t32.2)（APK 16,179,722 字节，SHA-256 `ccdef79e1138950830cbedfebeff37e2a5cc1cc08ef17f994c3bfa7a12327fb1`，v1+v2 签名）
+- 与 v0.2.46-t32.1 同签名，可直接覆盖升级；从原作者旧版（证书不同）升级需先卸载旧版
+
 **验证边界：最低安装版本不等于真机连接保证。** 当前 T3 / Android 4.4 适配基于 API 19 软件检查和模拟器专项测试；尚未完成该 T3 车机与 iPhone 15 Pro / iOS 26.6 的 USB、蓝牙、热点、画面、声音和触控全链路验证。内置实验性附件身份的本地签名成功，也不等于 iPhone 必然认可它。专项结果见 [T3 验证记录](docs/T3-ANDROID44-VALIDATION.md)。
 
-**奇骏验证现状**：2020 款奇骏（HSAE NTDA3 / Android 4.4.3）已通过 USB 成功连接 CarPlay 并正常出画（iPhone 14 Pro / iOS 27.0）。画面卡顿、崩溃取证、控制通道等问题的优化见下方「针对日产奇骏的优化」；这些改动目前**只以离线证据验证**（单元测试、日志回放、微基准），**尚未在实车上复测**。问题报告与讨论见 [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134)。
+**奇骏验证现状**（2026-10 实车，iPhone 14 Pro / iOS 27.0）：**USB 有线连接日常可用**；视频帧解密走 Conscrypt 原生实现（1.2–5.9ms/帧、3.5–23.7 MB/s）；退出 CarPlay 后进程崩溃、视频启动黑屏已修复；iAP2 静默误复位修复已由上游作者移植进官方 v0.2.63（`port(winkinwong)`）。**已知限制**：无线（蓝牙）连接尚未实机测试；触摸滑动有可感知延迟（iPhone 渲染＋i.MX6 硬件解码管线地板，应用侧已最优，降低显示分辨率是目前唯一杠杆）。问题报告与讨论见 [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134)。
 
 ---
 
-## 针对奇骏（X-Trail T32）车机的优化（未发布）
+## 针对奇骏（X-Trail T32）车机的优化（已随 v0.2.46-t32.2 发布）
 
-> 以下改动已在**本仓库代码中**，尚未随正式版本发布；逐项记录见 [docs/RELEASE-NOTES-NEXT.md](docs/RELEASE-NOTES-NEXT.md)，
+> 以下改动已随 **v0.2.46-t32.2** 发布；逐项记录见 [docs/RELEASE-NOTES-NEXT.md](docs/RELEASE-NOTES-NEXT.md)，
 > 对应的问题报告见 [issue #134](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues/134)。
-> 验证方式为**离线证据**（单元测试、日志回放、微基准、完整 CI），**尚未在实车上复测**。
+> 验证方式：**实车验证**（USB 有线日常可用）＋**离线证据**（单元测试 2137 个全过、日志回放、微基准、完整 CI）。
 
 | 问题 | 奇骏上的表现 | 本仓库的优化 |
 | :--- | :--- | :--- |
@@ -41,6 +45,8 @@
 | **三指下拉设置闪退** | 反复进出设置面板后「终止运行」 | 设置面板重建时对父容器的强转会抛 `NullPointerException`（位于手势处理器内）→ 改为安全解析并重新挂载；同时修复崩溃堆栈无法落盘的问题 |
 | **控制通道偶发卡死/断流** | 需重插数据线才能恢复 | 该防护只看 iAP2 控制帧；奇骏上 iPhone 可静默 90 秒而视频仍在正常传输，于是**被误判为链路死亡而拆掉正常会话** → 现在仅当 AirPlay 媒体**同样静默**才复位，并输出取证日志 |
 | **诊断指标缺陷** | 报告里 `decryptMBps` 恒为 0 | 整数除法把低于 1 MB/s 的吞吐截断成 0 → 改为保留两位小数；报告新增 `Frame cipher:` 行，标明实际使用的解密实现 |
+| **选择 iPhone 需手填 MAC** | 框架蓝牙适配器被隐藏的车机（航盛 MCU）上「选择 iPhone」只能手动输入蓝牙地址 | 通过厂商 AnwPhoneLink 服务查询 MCU 已配对设备（只读 Binder 事务，5 秒超时），列表非空时直接点选；服务不可达或列表为空回退手动输入 |
+| **iPod 服务抢占 USB** | 每次 USB 连 CarPlay 前需手动强制停止 com.hsae.ipod | 实验性设置「USB 连接时自动停止 iPod 服务」：发现 iPhone 时自动停止（root 用 `am force-stop`，非 root 回退 `killBackgroundProcesses`），默认关闭，下次 USB 连接生效 |
 
 **已核查、不涉及代码改动的问题**：音频无声经完整日志复核为**车机音频源路由侧**问题（应用侧数据链路健康：连续 105 秒 48 kHz 媒体流、0 写错误、0 欠载），与上游作者在 issue 中的结论一致。
 
@@ -130,7 +136,7 @@
 
 ## 问题反馈与交流讨论
 
-- **Issues 讨论**：如果遇到任何问题，欢迎在 [Issues](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues) 中发帖讨论，作者有时间就会回复解答。
+- **Issues 讨论**：如果遇到任何问题，欢迎在 [本仓库 Issues](https://github.com/winkinwong/DiPlay-Legacy-Android-T32/issues) 中发帖讨论；上游原版的问题与讨论见 [上游 Issues](https://github.com/programmerguohuajing/DiPlay-Legacy-Android/issues)。
 - **提供日志**：遇到具体问题时，**最好贴出详细的运行日志或诊断报告**，以便快速排查定位问题：
   1. 打开 DiPlay【设置】→【诊断】→【保存诊断报告】（v0.2.27 起已支持自动同步写入插上的 U 盘及 SD 卡根目录 `/mnt/sdcard/DiPlay/`）。
   2. 将导出的 `.txt` 诊断报告或相关截图/崩溃信息附在 Issue 描述中。
