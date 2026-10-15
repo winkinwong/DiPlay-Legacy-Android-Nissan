@@ -1,4 +1,4 @@
-import com.android.build.gradle.internal.tasks.L8DexDesugarLibTask
+﻿import com.android.build.gradle.internal.tasks.L8DexDesugarLibTask
 import java.security.KeyStore
 import java.security.MessageDigest
 import org.gradle.api.DefaultTask

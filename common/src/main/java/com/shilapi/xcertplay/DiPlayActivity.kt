@@ -45,6 +45,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.shilapi.xcertplay.adb.LocalAdb
+import com.shilapi.xcertplay.bluetooth.AnwPhoneLinkDiscovery
 import com.shilapi.xcertplay.bluetooth.BluetoothAddressResolver
 import com.shilapi.xcertplay.airplay.CarPlayClusterDisplay
 import com.shilapi.xcertplay.airplay.CarPlayDisplayScale
@@ -3892,7 +3893,7 @@ class DiPlayActivity : ComponentActivity() {
         }
         val adapter = BluetoothCompat.getAdapter(this)
         if (adapter == null) {
-            promptManualBluetoothInput()
+            choosePhoneFromAnwPhoneLink()
             return
         }
         if (!adapter.isEnabled) {
@@ -3905,6 +3906,43 @@ class DiPlayActivity : ComponentActivity() {
                 if (isFinishing || (Build.VERSION.SDK_INT >= 17 && isDestroyed)) return@runOnUiThread
                 if (devices.isNotEmpty()) {
                     showChoosePhoneDialog(devices)
+                } else {
+                    promptManualBluetoothInput()
+                }
+            }
+        }
+    }
+
+    /**
+     * This head unit hides the framework Bluetooth adapter, so the
+     * framework bonded-device list is unavailable. The vendor
+     * AnwPhoneLink service still tracks the MCU-paired phones, so
+     * offer that list for selection, with manual MAC input as the
+     * fallback when the service is unreachable.
+     */
+    private fun choosePhoneFromAnwPhoneLink() {
+        bluetoothExecutor.execute {
+            val devices = runCatching {
+                AnwPhoneLinkDiscovery(this@DiPlayActivity).discoverPairedDevices()
+            }.onFailure { android.util.Log.w("DiPlay", "AnwPhoneLink discovery failed", it) }
+                .getOrDefault(emptyList())
+            val mapped = devices
+                .map { device ->
+                    DiscoveredBluetoothDevice(
+                        address = device.address.uppercase(java.util.Locale.US),
+                        name = device.name.takeIf { it.isNotBlank() } ?: getString(R.string.paired_device),
+                        isConnected = false,
+                    )
+                }
+                .filter { it.address.isNotBlank() }
+                .sortedWith(
+                    compareByDescending<DiscoveredBluetoothDevice> { it.name.contains("iPhone", ignoreCase = true) }
+                        .thenBy { it.name },
+                )
+            runOnUiThread {
+                if (isFinishing || (Build.VERSION.SDK_INT >= 17 && isDestroyed)) return@runOnUiThread
+                if (mapped.isNotEmpty()) {
+                    showChoosePhoneDialog(mapped)
                 } else {
                     promptManualBluetoothInput()
                 }
