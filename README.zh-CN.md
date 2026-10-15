@@ -2,6 +2,8 @@
 
 [简体中文](README.zh-CN.md) · [English](README.md)
 
+> **第三方版本收录：** 本版本已收录于 [DiPlay 官网第三方版本列表](https://diplay.org/zh/community/)。
+
 > **本仓库定位：奇骏（X-Trail，底盘代号 T32）车机的优化版本。**
 > 主要验证与优化对象是 **日产奇骏**——实测机型为 **2020 款奇骏**，车机为
 > **HSAE 航盛 `NTDA3_BOARD_S02` / Android 4.4.3 (API 19) / 32 位 freescale sabresd（`NTDA3_P350`）**，
