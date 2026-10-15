@@ -74,6 +74,8 @@ class Iap2WiredControlClient(
         var forwardedFrames = 0
         var carPlayStartSessions = 0
         var startSessionNanos = 0L
+        /** t32.2 re-entry recovery: one StartSession re-advertisement per availability cycle. */
+        var startSessionRetrySent = false
         /** Reports the "media alive" decision once per run so a quiet control channel cannot spam. */
         var keptLinkAfterSilence = false
         // Issue #84/#61: the live loop previously had no dead-link detection — once the
@@ -160,17 +162,35 @@ class Iap2WiredControlClient(
                         )
                     }
                     // Issue #95: iPhone alive on iAP2 but no AirPlay TCP — fail fast with a
-                    // clear message instead of idling until the USB stack wedges.
-                    if (carPlayStartSessions > 0 && !airPlayTcpArrived() &&
-                        System.nanoTime() - startSessionNanos >= WIRED_FIRST_TCP_MILLIS * NANOS_PER_MILLISECOND
-                    ) {
-                        onProgress("iap2 wired no AirPlay TCP ${WIRED_FIRST_TCP_MILLIS}ms after carplay-start-session")
-                        return Iap2WiredControlResult(
-                            Iap2WiredControlTerminal.NO_AIRPLAY_TCP,
-                            stage,
-                            forwardedFrames,
-                            carPlayStartSessions,
-                        )
+                    // clear message instead of idling until the USB stack wedges. The t32.2
+                    // re-entry recovery (field report 2026-10-15) re-advertises StartSession
+                    // once first: after exiting and re-entering CarPlay the iPhone can still
+                    // dial the previous session's TUN endpoint, and every StartSession makes
+                    // the controller re-send the unsolicited neighbor advertisement that
+                    // refreshes the iPhone's NDP cache.
+                    when (wiredFirstTcpDecision(
+                        startSessionsSent = carPlayStartSessions,
+                        airPlayTcpArrived = airPlayTcpArrived(),
+                        elapsedSinceStartSessionMs = (System.nanoTime() - startSessionNanos) / NANOS_PER_MILLISECOND,
+                        retryAlreadySent = startSessionRetrySent,
+                    )) {
+                        WiredFirstTcpDecision.ReAdvertiseStartSession -> {
+                            startSessionRetrySent = true
+                            startSessionNanos = System.nanoTime()
+                            send(carPlayStartSession(endpoint), deadlineNanos)
+                            carPlayStartSessions++
+                            onProgress("iap2 tx=0x4301 carplay-start-session retry=no-airplay-tcp")
+                        }
+                        WiredFirstTcpDecision.FailNoAirPlayTcp -> {
+                            onProgress("iap2 wired no AirPlay TCP ${WIRED_FIRST_TCP_MILLIS}ms after carplay-start-session")
+                            return Iap2WiredControlResult(
+                                Iap2WiredControlTerminal.NO_AIRPLAY_TCP,
+                                stage,
+                                forwardedFrames,
+                                carPlayStartSessions,
+                            )
+                        }
+                        WiredFirstTcpDecision.KeepWaiting -> Unit
                     }
                     continue
                 }
@@ -185,7 +205,10 @@ class Iap2WiredControlClient(
                         send(carPlayStartSession(endpoint), deadlineNanos)
                         stage = Iap2WiredControlStage.CARPLAY_START_SENT
                         carPlayStartSessions++
-                        if (startSessionNanos == 0L) startSessionNanos = System.nanoTime()
+                        // Every StartSession restarts the iPhone's dial attempt (the controller re-arms
+                        // its first-TCP watchdog the same way), so the window and the retry budget reset here.
+                        startSessionNanos = System.nanoTime()
+                        startSessionRetrySent = false
                         onProgress("iap2 tx=0x4301 carplay-start-session")
                     }
 
@@ -227,7 +250,7 @@ class Iap2WiredControlClient(
         /** Quiet long after StartSession: treat the link as dead and rebuild (issue #84/#61, Fix 1). */
         private const val PEER_SILENT_RESET_MILLIS = 90_000L
         /** No AirPlay TCP this long after StartSession: fail fast (issue #95). Mirrors wireless. */
-        private const val WIRED_FIRST_TCP_MILLIS = 30_000L
+        internal const val WIRED_FIRST_TCP_MILLIS = 30_000L
 
         /** Exact LIVI wired PowerSourceUpdate encoding: current and the charge-if-powered flag. */
         fun powerSourceUpdate(availableCurrentMilliAmps: Int): Iap2Frame =
@@ -330,3 +353,32 @@ data class Iap2WiredControlResult(
  */
 internal fun shouldResetLinkOnPeerSilence(peerSilent: Boolean, airPlayDataRecent: Boolean?): Boolean =
     peerSilent && airPlayDataRecent != true
+
+/** First-TCP watchdog outcome (issue #95 with the t32.2 re-entry recovery). */
+internal sealed interface WiredFirstTcpDecision {
+    /** No StartSession yet, or the iPhone already opened the AirPlay TCP. */
+    object KeepWaiting : WiredFirstTcpDecision
+    /** StartSession was sent but the iPhone never dialed: re-advertise once. */
+    object ReAdvertiseStartSession : WiredFirstTcpDecision
+    /** The re-advertisement window elapsed with no AirPlay TCP: the link is dead. */
+    object FailNoAirPlayTcp : WiredFirstTcpDecision
+}
+
+/**
+ * Issue #95 first-TCP watchdog with the t32.2 re-entry recovery (field report
+ * 2026-10-15): after exiting and re-entering CarPlay the iPhone can still dial
+ * the previous session's TUN endpoint, so a StartSession the iPhone missed gets
+ * exactly one re-advertisement before the link is declared dead.
+ */
+internal fun wiredFirstTcpDecision(
+    startSessionsSent: Int,
+    airPlayTcpArrived: Boolean,
+    elapsedSinceStartSessionMs: Long,
+    retryAlreadySent: Boolean,
+    firstTcpMillis: Long = Iap2WiredControlClient.WIRED_FIRST_TCP_MILLIS,
+): WiredFirstTcpDecision = when {
+    startSessionsSent <= 0 || airPlayTcpArrived -> WiredFirstTcpDecision.KeepWaiting
+    elapsedSinceStartSessionMs < firstTcpMillis -> WiredFirstTcpDecision.KeepWaiting
+    !retryAlreadySent -> WiredFirstTcpDecision.ReAdvertiseStartSession
+    else -> WiredFirstTcpDecision.FailNoAirPlayTcp
+}

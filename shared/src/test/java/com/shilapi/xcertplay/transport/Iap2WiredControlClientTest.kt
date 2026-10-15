@@ -54,4 +54,40 @@ class Iap2WiredControlClientTest {
         assertEquals(0, addresses.single().id)
         assertArrayEquals("fe80::2\u0000".encodeToByteArray(), addresses.single().payload)
     }
+
+    /**
+     * t32.2 field report 2026-10-15: after exiting and re-entering CarPlay the
+     * iPhone can still dial the previous session's TUN endpoint, so a StartSession
+     * the iPhone missed gets exactly one re-advertisement (which also makes the
+     * controller re-send the unsolicited neighbor advertisement) before the link
+     * is declared dead and the driver has to replug the cable.
+     */
+    @Test
+    fun missedAirPlayTcpReAdvertisesStartSessionOnceThenFails() {
+        assertEquals(
+            "before the first-TCP window the loop keeps waiting",
+            WiredFirstTcpDecision.KeepWaiting,
+            wiredFirstTcpDecision(startSessionsSent = 1, airPlayTcpArrived = false, elapsedSinceStartSessionMs = 29_999, retryAlreadySent = false),
+        )
+        assertEquals(
+            "a missed StartSession is re-advertised once",
+            WiredFirstTcpDecision.ReAdvertiseStartSession,
+            wiredFirstTcpDecision(startSessionsSent = 1, airPlayTcpArrived = false, elapsedSinceStartSessionMs = 30_000, retryAlreadySent = false),
+        )
+        assertEquals(
+            "the re-advertisement window elapsed with no AirPlay TCP: the link is dead",
+            WiredFirstTcpDecision.FailNoAirPlayTcp,
+            wiredFirstTcpDecision(startSessionsSent = 1, airPlayTcpArrived = false, elapsedSinceStartSessionMs = 30_000, retryAlreadySent = true),
+        )
+        assertEquals(
+            "the iPhone dialed during the retry window: the session recovered",
+            WiredFirstTcpDecision.KeepWaiting,
+            wiredFirstTcpDecision(startSessionsSent = 1, airPlayTcpArrived = true, elapsedSinceStartSessionMs = 45_000, retryAlreadySent = true),
+        )
+        assertEquals(
+            "the watchdog never arms before the first StartSession",
+            WiredFirstTcpDecision.KeepWaiting,
+            wiredFirstTcpDecision(startSessionsSent = 0, airPlayTcpArrived = false, elapsedSinceStartSessionMs = 60_000, retryAlreadySent = false),
+        )
+    }
 }
