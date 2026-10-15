@@ -10,6 +10,7 @@ import com.shilapi.xcertplay.compat.BluetoothCompat
 import com.shilapi.xcertplay.media.musicVolumeWarning
 import com.shilapi.xcertplay.bluetooth.BluetoothAddressResolver
 import com.shilapi.xcertplay.bluetooth.CarPlayBluetoothManager
+import com.shilapi.xcertplay.bluetooth.selectVendorWirelessTarget
 import android.bluetooth.BluetoothSocket
 import android.content.ComponentName
 import android.content.Context
@@ -1198,27 +1199,22 @@ class CarPlayController(
             debugLog("wireless bring-up generation=$generation starting")
             // Issue #79: without a Bluetooth adapter, wireless CarPlay is impossible —
             // iPhone needs Bluetooth for discovery/pairing. Fail fast instead of waiting
-            // 60s for a Wi-Fi connection that will never come. On this Nissan MCU
-            // family the vendor Bluetooth stack is hidden from the Android framework
-            // and AnwPhoneLink only reports the paired phone list over USB, so no
-            // software path to the wireless discovery handshake exists here.
-            val btAdapter = BluetoothAdapter.getDefaultAdapter()
-            if (btAdapter == null) {
-                throw IOException(
-                    "This head unit's Bluetooth stack is hidden from Android, so wireless " +
-                        "CarPlay discovery cannot run here (AnwPhoneLink only lists paired " +
-                        "phones over USB). Use wired USB CarPlay instead."
+            // 60s for a Wi-Fi connection that will never come. The gate consults the
+            // hybrid adapter (vendor Bluetooth service + Android framework), so head
+            // units whose Bluetooth lives only in the vendor service — this Nissan MCU
+            // family included — still get wireless CarPlay instead of failing here.
+            when (val gate = wirelessBluetoothGate(
+                hybrid = CarPlayBluetoothManager.get(appContext),
+                savedPhoneAddress = config.wirelessBluetoothDeviceAddress,
+                nowMillis = { System.currentTimeMillis() },
+                sleepMillis = { millis -> Thread.sleep(millis) },
+            )) {
+                is WirelessBluetoothGate.Fail -> throw IOException(gate.message)
+                is WirelessBluetoothGate.ProceedWithManualAddress -> debugLog(
+                    "wireless Bluetooth reported off by the framework; proceeding with the " +
+                        "manually entered iPhone address (Bluetooth may be managed by a vendor stack)",
                 )
-            }
-            // Issue #117: adapter present but switched off — the iPhone can never discover
-            // the head unit, so fail fast with an actionable message instead of the 60s
-            // Wi-Fi wait ending in "Timed out waiting for iPhone to connect over Wi-Fi hotspot".
-            if (!btAdapter.isEnabled) {
-                throw IOException(
-                    "Bluetooth is turned off on this head unit; wireless CarPlay requires Bluetooth " +
-                        "for iPhone discovery. Turn on Bluetooth in the head unit system settings " +
-                        "and retry, or use wired USB instead."
-                )
+                is WirelessBluetoothGate.Proceed -> Unit
             }
             closeWirelessStack(generation = generation)
             if (
@@ -1332,9 +1328,24 @@ class CarPlayController(
                 debugLog("wireless Bluetooth device selection not available: ${error.message}; proceeding with Wi-Fi discovery")
                 null
             }
+            // Vendor-only head units (this Nissan MCU family) have no
+            // framework adapter to select through; pick the iPhone
+            // from the hybrid adapter's vendor paired list or the
+            // manually entered address, so the iAP2 bootstrap still
+            // runs over the vendor RFCOMM channel.
+            val vendorTarget = if (device != null || adapter != null) {
+                null
+            } else {
+                try {
+                    selectVendorWirelessTarget(hybridAdapter, config.wirelessBluetoothDeviceAddress)
+                } catch (error: Throwable) {
+                    debugLog("vendor Bluetooth target selection unavailable: ${error.message}; proceeding with Wi-Fi discovery")
+                    null
+                }
+            }
             val hostBluetoothMac = accessoryBluetoothMac(adapter)
             debugLog(
-                "wireless selected Bluetooth target targetAddress=${device?.address ?: "none"} localBt=$hostBluetoothMac",
+                "wireless selected Bluetooth target targetAddress=${device?.address ?: vendorTarget?.address ?: "none"} localBt=$hostBluetoothMac",
             )
             val wirelessAirPlayConfig = airPlayConfig.copy(
                 deviceId = deviceIdentifier,
@@ -1437,14 +1448,15 @@ class CarPlayController(
                 return
             }
 
-            if (device != null) {
+            val targetAddress = device?.address ?: vendorTarget?.address
+            if (targetAddress != null) {
                 onStatus(CarPlayStatus.ConnectingBluetooth)
                 stage = "Bluetooth RFCOMM connection"
                 debugLog(
-                    "wireless RFCOMM connecting address=${device.address} " +
+                    "wireless RFCOMM connecting address=$targetAddress " +
                         "uuid=$IAP2_IPHONE_UUID",
                 )
-                logBluetoothConnectionSnapshot(device, "before-connect")
+                device?.let { logBluetoothConnectionSnapshot(it, "before-connect") }
                 val bluetoothStarted = System.nanoTime()
 
                 var stream: BlockingDuplexByteStream? = null
@@ -1463,12 +1475,12 @@ class CarPlayController(
                     try {
                         onStatus(CarPlayStatus.ConnectingBluetooth)
                         stage = "Bluetooth RFCOMM connection"
-                        debugLog("wireless RFCOMM connecting (attempt $attempt/$maxAttempts) address=${device.address} uuid=$IAP2_IPHONE_UUID")
-                        logBluetoothConnectionSnapshot(device, "before-connect-$attempt")
-                        val currentStream = hybridAdapter.openRfcommStream(device.address, IAP2_IPHONE_UUID)
+                        debugLog("wireless RFCOMM connecting (attempt $attempt/$maxAttempts) address=$targetAddress uuid=$IAP2_IPHONE_UUID")
+                        device?.let { logBluetoothConnectionSnapshot(it, "before-connect-$attempt") }
+                        val currentStream = hybridAdapter.openRfcommStream(targetAddress, IAP2_IPHONE_UUID)
                         bluetoothStream = currentStream
                         stream = currentStream
-                        debugLog("wireless RFCOMM connected address=${device.address}")
+                        debugLog("wireless RFCOMM connected address=$targetAddress")
 
                         val currentChannel = Iap2Session.openWireless(
                             currentStream,

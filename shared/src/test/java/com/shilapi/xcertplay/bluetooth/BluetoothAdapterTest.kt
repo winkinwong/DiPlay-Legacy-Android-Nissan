@@ -70,11 +70,66 @@ class BluetoothAdapterTest {
     @Test
     fun testHybridAdapterDelegationWhenHsaeNotSupported() {
         val hsae = HsaeBluetoothAdapter(context)
+        val anw = AnwPhoneLinkBluetoothAdapter(context)
         val android = AndroidBluetoothAdapter(context)
-        val hybrid = HybridBluetoothAdapter(hsae, android)
+        val hybrid = HybridBluetoothAdapter(hsae, anw, android)
 
-        // On non-Nissan system or test JVM, HSAE package com.hsae.bluetoothservice does not exist
+        // On non-Nissan system or test JVM, HSAE package
+        // com.hsae.bluetoothservice and the AnwPhoneLink
+        // service do not exist
         assertFalse(hsae.isSupported())
+        assertFalse(anw.isSupported())
         assertEquals("AndroidBluetoothAdapter", hybrid.getAdapterName())
+    }
+
+    @Test
+    fun hybridChainsTheVendorAdapterBeforeAndroid() {
+        val hsae = FakeCarPlayBluetooth()
+        val anw = FakeCarPlayBluetooth(
+            supported = true,
+            enabled = true,
+            name = "AnwPhoneLink",
+            paired = listOf(CarPlayBluetoothDevice("iPhone 12", "AA:BB:CC:DD:EE:FF", true)),
+            connected = CarPlayBluetoothDevice("iPhone 12", "AA:BB:CC:DD:EE:FF", true),
+            localMac = "AA:BB:CC:DD:EE:01",
+        )
+        val android = FakeCarPlayBluetooth(supported = true, enabled = true, name = "AndroidBluetoothAdapter")
+        val hybrid = HybridBluetoothAdapter(hsae, anw, android)
+
+        assertTrue(hybrid.isSupported())
+        assertTrue(hybrid.isEnabled())
+        hybrid.enable()
+        assertEquals(1, anw.enableCalls)
+        assertEquals(1, android.enableCalls)
+        assertEquals("Hybrid(AnwPhoneLink+Android)", hybrid.getAdapterName())
+        assertEquals(1, hybrid.getPairedDevices().size)
+        assertEquals("AA:BB:CC:DD:EE:FF", hybrid.getConnectedDevice()?.address)
+        assertEquals("AA:BB:CC:DD:EE:01", hybrid.localAddress(context))
+        hybrid.openRfcommStream("AA:BB:CC:DD:EE:FF", "uuid")
+        assertEquals(1, anw.rfcommStreams)
+        assertEquals(0, android.rfcommStreams)
+    }
+
+    @Test
+    fun hybridFallsBackToAndroidWhenVendorRfcommFails() {
+        val hsae = FakeCarPlayBluetooth()
+        val anw = FakeCarPlayBluetooth(supported = true, enabled = true, rfcommFails = true)
+        val android = FakeCarPlayBluetooth(supported = true, enabled = true, name = "AndroidBluetoothAdapter")
+        val hybrid = HybridBluetoothAdapter(hsae, anw, android)
+
+        hybrid.openRfcommStream("AA:BB:CC:DD:EE:FF", "uuid")
+        assertEquals(1, anw.rfcommStreams)
+        assertEquals(1, android.rfcommStreams)
+    }
+
+    @Test
+    fun hybridReportsUnsupportedWhenNoStackExists() {
+        val hybrid = HybridBluetoothAdapter(
+            FakeCarPlayBluetooth(),
+            FakeCarPlayBluetooth(),
+            FakeCarPlayBluetooth(),
+        )
+        assertFalse(hybrid.isSupported())
+        assertFalse(hybrid.isEnabled())
     }
 }

@@ -10,7 +10,8 @@ object CarPlayBluetoothManager {
         return instance ?: synchronized(this) {
             instance ?: HybridBluetoothAdapter(
                 HsaeBluetoothAdapter(context.applicationContext),
-                AndroidBluetoothAdapter(context.applicationContext)
+                AnwPhoneLinkBluetoothAdapter(context.applicationContext),
+                AndroidBluetoothAdapter(context.applicationContext),
             ).also { instance = it }
         }
     }
