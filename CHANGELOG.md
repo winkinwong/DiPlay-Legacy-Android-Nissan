@@ -1,3 +1,11 @@
+# DiPlay 0.2.46-t32.3 — 2026-10-16
+
+- Wireless CarPlay now bridges the vendor AnwPhoneLink Bluetooth stack: head units with no framework BluetoothAdapter and no HSAE Bluetooth service (like this X-Trail, which previously failed wireless with "No Bluetooth adapter") get wireless CarPlay; the paired-phone list is queried through the AnwPhoneLink service and the iAP2 RFCOMM/SPP channel runs over it.
+- Port upstream #138/#165/#157 wireless gate: gate on the hybrid adapter, wait up to 3 s for enable, and proceed with a warning when Bluetooth reports off but a manual iPhone address was entered.
+- Validated on the target head unit on 2026-10-16: wireless connection works and is slightly smoother than USB.
+
+**All versions in this repository are optimized for the 2020 Nissan X-Trail (T32 platform, Android 4.4.2); other models must test on their own.**
+
 # DiPlay 0.2.46-t32.1 — 2026-10-14
 
 - First X-Trail (chassis T32) head-unit optimization release: built on the author's v0.2.46 with the four fixes from issue #134.
