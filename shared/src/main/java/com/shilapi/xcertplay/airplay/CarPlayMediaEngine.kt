@@ -152,6 +152,20 @@ class CarPlayMediaEngine(
         }
         val port = screen.listen(
             object : ScreenStream.Listener by currentScreenListener(type, sink, isCurrent = { streams[streamKey] === screen }) {
+                override fun onReceiveStall(millis: Long) {
+                    if (streams[streamKey] !== screen) return
+                    // A silent sender gets the same keyframe nudge as the
+                    // decoder recovery handler; ScreenStream resets the
+                    // stream itself if the silence outlives its budget.
+                    val command = if (type == STREAM_TYPE_ALT_SCREEN) {
+                        mapOf("type" to "forceKeyFrame", "params" to mapOf("uuid" to AirPlayInfoPlist.ALT_UUID))
+                    } else {
+                        mapOf("type" to "forceKeyFrame")
+                    }
+                    val sent = session.sendCommand(command)
+                    session.logDebug("Video recovery: receive stalled ${millis}ms; requested keyframe sent=$sent")
+                }
+
                 override fun onClosed(cause: Throwable?) {
                     val reason = cause?.message ?: "peer EOF"
                     Log.w(TAG, "screen stream ended type=$type reason=$reason")

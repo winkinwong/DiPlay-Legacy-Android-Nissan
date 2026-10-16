@@ -2741,7 +2741,20 @@ class CarPlayController(
 
             val activeBonjour = bonjour
             bonjour = null
-            if (activeBonjour != null) closeBestEffort("Bonjour") { activeBonjour.close() }
+            if (activeBonjour != null) {
+                // JmDNS close() unregisters its services over multicast and
+                // can block for seconds on Android 4.4; a reconnect must
+                // not wait for it. The next run registers a fresh instance,
+                // so the old instance's goodbye packets are harmless in
+                // the background.
+                Thread(
+                    { closeBestEffort("Bonjour") { activeBonjour.close() } },
+                    "xcertplay-bonjour-close",
+                ).apply {
+                    isDaemon = true
+                    start()
+                }
+            }
 
             val activeHotspot = hotspot
             hotspot = null
